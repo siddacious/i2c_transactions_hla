@@ -3,14 +3,13 @@
 A simple HLA for Saleae Logic 2.0 that packages raw I2C analyzer frames into read/write transactions between a master and a slave that uses address-based registers
 
 ## Status
-The code that packages the I2C frames into transactions is currently tangled with register name mapping code. I'm hoping to extract into a higher-level HLA if possible, bbut for now my plans are:
-
-* Move all register naming code back into `process_transaction`
-* Test support for arbitrary register maps
-* Add toggleable debug prints
-* Add option for multi-byte read/write address auto-increment
 
 **Only tested with repeated starts**
+
+The code that packages the I2C frames into transactions is currently tangled with register name mapping code. I'm hoping to extract into a higher-level HLA if possible, bbut for now my plans are:
+
+* Test support for arbitrary register maps
+* Add higher-level register mapper with support for bitwise operation tracking
 
 Possible additions:
 * Write to file

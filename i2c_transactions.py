@@ -74,6 +74,7 @@ class I2CRegisterTransactions():
         '''
         self.prev_frame = None
         self.current_transaction = None
+        self._debug = False
 
         self.mode = MODE_AUTO_INCREMENT_DEFAULT
 
@@ -94,6 +95,14 @@ class I2CRegisterTransactions():
                 'Register map (json)': {
                     'type': 'string',
                 },
+                'Multi-byte auto-increment mode': {
+                    'type': 'choices',
+                    'choices': ('MODE_AUTO_INCREMENT_DEFAULT', 'MODE_AUTO_INCREMENT_ADDR_MSB_HIGH')
+                },
+                'Debug Print': {
+                    'type': 'choices',
+                    'choices': ('False', 'True')
+                }
             }
         }
 
@@ -112,12 +121,20 @@ class I2CRegisterTransactions():
 
         if 'Register map (json)' in settings:
             self.register_map_file = settings['Register map (json)']
-            # You can do something with the number setting here
             self._load_register_map()
 
-        # Here you can specify how output frames will be formatted in the Logic 2 UI
-        # If no format is given for a type, a default formatting will be used
-        # You can include the values from your frame data (as returned by `decode`) by wrapping their name in double braces, as shown below.
+        if 'Multi-byte auto-increment mode' in settings:
+            mode_setting = settings['Multi-byte auto-increment mode']
+            if mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
+                self.mode = MODE_AUTO_INCREMENT_DEFAULT
+            elif mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
+                self.mode = MODE_AUTO_INCREMENT_DEFAULT
+
+        if 'Debug Print' in settings:
+            print("debug in settings:", settings['Debug Print'])
+            self._debug = settings['Debug Print'] == 'True'
+            print("self._debug:", self._debug)
+
         return {
             'result_types': {
                 'i2c_frame  ': {
@@ -135,6 +152,7 @@ class I2CRegisterTransactions():
         if self.mode == MODE_AUTO_INCREMENT_ADDR_MSB_HIGH:
             address_byte &= 0x7F # clear any MSB used for auto increment
 
+        ############ register naming #####################
         # TODO: update register map to use int keys
         address_key = str(address_byte)
         if address_key in self.current_map.keys():
@@ -148,13 +166,15 @@ class I2CRegisterTransactions():
         if register_name == "BANK":
             bank_val = (txn.data[0] & 0x30)>>4
             self.current_map = self.register_map[bank_val]
-
+        ###################################################
+        transaction_string = str(txn)
+        print(transaction_string)
         new_frame = {
             'type': 'transaction',
             'start_time': self.current_transaction.start_time,
             'end_time': self.current_transaction.end_time,
             'data': {
-                'transaction_string' : str(txn)
+                'transaction_string' : transaction_string
             }
         }
 
@@ -168,7 +188,6 @@ class I2CRegisterTransactions():
 
     def _process_address_frame(self, frame):
         address_frame_data = frame['data']['address'][0]
-        if self.current_transaction is None: return
         self.current_transaction.last_address_frame = address_frame_data
 
     def _process_start_frame(self, frame):
@@ -177,9 +196,6 @@ class I2CRegisterTransactions():
         self.current_transaction = Transaction(frame['start_time'])
 
     def _process_stop_frame(self, frame):
-        if self.current_transaction is None:
-            return
-
         self.current_transaction.end_time = frame['end_time']
         new_frame = self.process_transaction()
         self.current_transaction = None
@@ -187,23 +203,33 @@ class I2CRegisterTransactions():
         return new_frame
 
     def decode(self, frame):
-        frame_type = frame['type']
         new_frame = None
+        frame_type = frame['type']
+        if self._debug: print(frame_type.upper())
+
+        if frame_type == 'start': # begin new transaction or repeated start
+            self._process_start_frame(frame)
+        if self.current_transaction is None:
+            if self._debug: print("EXITing `decode` due to missing transaction for non-start frame")
+            return
+
         if frame_type == 'address': # read or write + I2C slave addr
             self._process_address_frame(frame)
         elif frame_type == 'data': # register address and data
             self._process_data_frame(frame)
-        elif frame_type == 'start': # begin new transaction or repeated start
-            self._process_start_frame(frame)
+
         elif frame_type == 'stop': # transaction end, ready to process
             new_frame = self._process_stop_frame(frame)
 
         self.prev_frame = frame
-        # if self.current_transaction:
-        #     print(self.current_transaction)
 
-        if new_frame is not None:
-            print("\nNEW_FRAME:")
-            for k, v in new_frame.items():
-                print("\t%s=>%s"%(k,v))
+        if new_frame:
+            if self._debug:
+                print("\nNEW_FRAME:")
+                for key, value in new_frame.items():
+                        print(key, "=>", value)
+
             return new_frame
+
+        if self.current_transaction and self._debug:
+            print(self.current_transaction)
