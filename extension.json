@@ -1,13 +1,13 @@
 {
   "version": "0.0.1",
   "apiVersion": "1.0.0",
-  "author": "Untitled",
-  "description": "",
-  "name": "ICM20948 tester",
+  "author": "Bryan Siepert",
+  "description": "A simple HLA for packaging analyzer frames into transactions",
+  "name": "Register Transactions",
   "extensions": {
-    "ICMHLA_test": {
+    "I2C Register Transactions": {
       "type": "HighLevelAnalyzer",
-      "entryPoint": "ICM20948_HLA.ICM20948HLA"
+      "entryPoint": "i2c_transactions.I2CRegisterTransactions"
     }
   }
 }

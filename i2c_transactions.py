@@ -65,7 +65,7 @@ class Transaction:
 MODE_AUTO_INCREMENT_ADDR_MSB_HIGH = 0
 MODE_AUTO_INCREMENT_DEFAULT = 1
 
-class ICM20948HLA():
+class I2CRegisterTransactions():
 
     def __init__(self):
         '''
