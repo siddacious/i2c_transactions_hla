@@ -1,6 +1,4 @@
-# High Level Analyzer
-# For more information and documentation, please go to https://github.com/saleae/logic2-examples
-#TODO: Measure time between calls/
+# TODO: Measure time between calls/
 import os
 import json
 
@@ -11,7 +9,7 @@ class Transaction:
     is_read: bool
     start_time: float
     register_address: int
-    register_str: str
+    register_name: str
     _last_addr_frame: int
     data: bytearray
 
@@ -20,7 +18,7 @@ class Transaction:
         self.is_multibyte_read = False
         self.end_time = None
         self.register_address = None
-        self.register_str = ""
+        self.register_name = ""
         self._last_addr_frame = None
         self.data = bytearray()
 
@@ -52,9 +50,10 @@ class Transaction:
                 out_str +=" READ"
             else:
                 out_str +=" WRITE"
+            # TODO: option to show slave addr
             # out_str +=" (%s)"%hex(self.i2c_node_addr)
-        if self.register_str and self.register_address:
-            out_str += " %s"%self.register_str
+        if self.register_name and self.register_address:
+            out_str += " %s"%self.register_name
             out_str += " (%s)"%hex(self.register_address)
         if len(self.data) > 0:
             byte_list = [hex(i) for i in self.data]
@@ -73,14 +72,15 @@ class I2CRegisterTransactions():
 
         If you have any initialization to do before any methods are called, you can do it here.
         '''
-        print("__INIT__")
         self.prev_frame = None
+        self.current_transaction = None
+
+        self.mode = MODE_AUTO_INCREMENT_DEFAULT
+
         self.register_map = None
         self.register_map_file = None
-
-        self.current_transaction = None
-        self.mode = MODE_AUTO_INCREMENT_DEFAULT
         self.current_bank = 0
+        self.current_map = {}
 
     def get_capabilities(self):
         '''
@@ -101,6 +101,7 @@ class I2CRegisterTransactions():
         if os.path.exists(self.register_map_file):
             with open(self.register_map_file) as f:
                 self.register_map = json.load(f)
+        self.current_map = self.register_map[0]
 
     def set_settings(self, settings):
         '''
@@ -129,13 +130,31 @@ class I2CRegisterTransactions():
         }
 
     def process_transaction(self):
-        # TODO: handle register naming and bank setting here
+        txn = self.current_transaction
+        address_byte = txn.data.pop(0)
+        if self.mode == MODE_AUTO_INCREMENT_ADDR_MSB_HIGH:
+            address_byte &= 0x7F # clear any MSB used for auto increment
+
+        # TODO: update register map to use int keys
+        address_key = str(address_byte)
+        if address_key in self.current_map.keys():
+            register_name = self.current_map[address_key]['name']
+        else:
+            register_name = "UNKNOWN[%s]"%hex(address_key)
+
+        txn.register_name = register_name
+        txn.register_address = address_byte
+
+        if register_name == "BANK":
+            bank_val = (txn.data[0] & 0x30)>>4
+            self.current_map = self.register_map[bank_val]
+
         new_frame = {
             'type': 'transaction',
             'start_time': self.current_transaction.start_time,
             'end_time': self.current_transaction.end_time,
             'data': {
-                'transaction_string' : str(self.current_transaction)
+                'transaction_string' : str(txn)
             }
         }
 
@@ -143,30 +162,7 @@ class I2CRegisterTransactions():
 
     def _process_data_frame(self, frame):
         byte = frame['data']['data'][0]
-        # TODO:refactor to higher level HLA
-        current_bank = self.register_map[self.current_bank]
-        #  this is a write and ...                   ... this is the first data byte
-        is_write = not self.current_transaction.is_read
-        if is_write:
-            if self.current_transaction.register_address is None:
-                byte &= 0x7F # clear any MSB used for auto increment
-                self.current_transaction.register_address = byte
 
-                # TODO:refactor to higher level HLA
-                if str(byte) in current_bank.keys():
-                    reg_name = current_bank[str(byte)]['name']
-                    self.current_transaction.register_str = reg_name
-                else:
-                    reg_str = "UNKNOWN[%s]"%hex(byte)
-                    print(" \t\t**** %s *****"%reg_str)
-                    self.current_transaction.register_str = reg_str
-                return
-            else:
-
-                # TODO:refactor to higher level HLA
-                if self.current_transaction.register_str == "BANK" and len(self.current_transaction.data)== 0:
-                    bank_val = (byte & 0x30)>>4
-                    self.current_bank = bank_val
 
         self.current_transaction.data.append(byte)
 

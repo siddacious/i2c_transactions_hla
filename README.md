@@ -8,6 +8,9 @@ The code that packages the I2C frames into transactions is currently tangled wit
 * Move all register naming code back into `process_transaction`
 * Test support for arbitrary register maps
 * Add toggleable debug prints
+* Add option for multi-byte read/write address auto-increment
+
+**Only tested with repeated starts**
 
 Possible additions:
 * Write to file
