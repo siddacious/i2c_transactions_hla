@@ -1,0 +1,540 @@
+[
+  {
+    "0": {
+      "name": "WHO_AM_I",
+      "rw": "R",
+      "fields": [
+        "WHO_AM_I[7:0]"
+      ]
+    },
+    "3": {
+      "name": "USER_CTRL",
+      "rw": "R/W",
+      "fields": [
+        "DMP_EN",
+        "FIFO_EN",
+        "I2C_MST_EN",
+        "I2C_IF_DIS",
+        "DMP_RST",
+        "SRAM_RST",
+        "I2C_MST_RST",
+        "-"
+      ]
+    },
+    "5": {
+      "name": "LP_CONFIG",
+      "rw": "R/W",
+      "fields": [
+        "I2C_MST_CYCLE",
+        "ACCEL_CYCLE",
+        "GYRO_CYCLE",
+        "-"
+      ]
+    },
+    "6": {
+      "name": "PWR_MGMT_1",
+      "rw": "R/W",
+      "fields": [
+        "DEVICE_RESET",
+        "SLEEP",
+        "LP_EN",
+        "-",
+        "TEMP_DIS",
+        "CLKSEL[2:0]"
+      ]
+    },
+    "7": {
+      "name": "PWR_MGMT_2",
+      "rw": "R/W",
+      "fields": [
+        "-",
+        "DISABLE_ACCEL",
+        "DISABLE_GYRO"
+      ]
+    },
+    "15": {
+      "name": "INT_PIN_CFG",
+      "rw": "R/W",
+      "fields": [
+        "INT1_ACTL",
+        "INT1_OPEN",
+        "INT1_LATCH_INT_EN",
+        "INT_ANYRD_2CLEAR",
+        "ACTL_FSYNC",
+        "FSYNC_INT_MODE_EN",
+        "BYPASS_EN",
+        "-"
+      ]
+    },
+    "16": {
+      "name": "INT_ENABLE",
+      "rw": "R/W",
+      "fields": [
+        "REG_WOF_EN",
+        "-",
+        "DMP_INT2_EN",
+        "WOM_INT_EN",
+        "PLL_RDY_EN",
+        "DMP_INT1_EN",
+        "I2C_MST_INT_EN"
+      ]
+    },
+    "17": {
+      "name": "INT_ENABLE_1",
+      "rw": "R/W",
+      "fields": [
+        "INT2_ACTL",
+        "INT2_OPEN",
+        "INT2_LATCH_EN",
+        "-",
+        "RAW_DATA_0_RDY_EN"
+      ]
+    },
+    "18": {
+      "name": "INT_ENABLE_2",
+      "rw": "R/W",
+      "fields": [
+        "-",
+        "FIFO_OVERFLOW_EN[4:0]"
+      ]
+    },
+    "19": {
+      "name": "INT_ENABLE_3",
+      "rw": "R/W",
+      "fields": [
+        "-",
+        "FIFO_WM_EN[4:0]"
+      ]
+    },
+    "23": {
+      "name": "I2C_MST_STATUS",
+      "rw": "R/C",
+      "fields": [
+        "PASS_THROUGH",
+        "I2C_SLV4_DONE",
+        "I2C_LOST_ARB",
+        "I2C_SLV4_NACK",
+        "I2C_SLV3_NACK",
+        "I2C_SLV2_NACK",
+        "I2C_SLV1_NACK",
+        "I2C_SLV0_NACK"
+      ]
+    },
+    "25": {
+      "name": "INT_STATUS",
+      "rw": "R/C",
+      "fields": [
+        "-",
+        "WOM_INT",
+        "PLL_RDY_INT",
+        "DMP_INT1",
+        "I2C_MST_INT"
+      ]
+    },
+    "26": {
+      "name": "INT_STATUS_1",
+      "rw": "R/C",
+      "fields": [
+        "-",
+        "RAW_DATA_0_RDY_INT"
+      ]
+    },
+    "27": {
+      "name": "INT_STATUS_2",
+      "rw": "R/C",
+      "fields": [
+        "-",
+        "FIFO_OVERFLOW_INT[4:0]"
+      ]
+    },
+    "28": {
+      "name": "INT_STATUS_3",
+      "rw": "R/C",
+      "fields": [
+        "-",
+        "FIFO_WM_INT[4:0]"
+      ]
+    },
+    "40": {
+      "name": "DELAY_TIMEH",
+      "rw": "R",
+      "fields": [
+        "DELAY_TIMEH[7:0]"
+      ]
+    },
+    "41": {
+      "name": "DELAY_TIMEL",
+      "rw": "R",
+      "fields": [
+        "DELAY_TIMEL[7:0]"
+      ]
+    },
+    "45": {
+      "name": "ACCEL_XOUT_H",
+      "rw": "R",
+      "fields": [
+        "ACCEL_XOUT_H[7:0]"
+      ]
+    },
+    "46": {
+      "name": "ACCEL_XOUT_L",
+      "rw": "R",
+      "fields": [
+        "ACCEL_XOUT_L[7:0]"
+      ]
+    },
+    "47": {
+      "name": "ACCEL_YOUT_H",
+      "rw": "R",
+      "fields": [
+        "ACCEL_YOUT_H[7:0]"
+      ]
+    },
+    "48": {
+      "name": "ACCEL_YOUT_L",
+      "rw": "R",
+      "fields": [
+        "ACCEL_YOUT_L[7:0]"
+      ]
+    },
+    "49": {
+      "name": "ACCEL_ZOUT_H",
+      "rw": "R",
+      "fields": [
+        "ACCEL_ZOUT_H[7:0]"
+      ]
+    },
+    "50": {
+      "name": "ACCEL_ZOUT_L",
+      "rw": "R",
+      "fields": [
+        "ACCEL_ZOUT_L[7:0]"
+      ]
+    },
+    "51": {
+      "name": "GYRO_XOUT_H",
+      "rw": "R",
+      "fields": [
+        "GYRO_XOUT_H[7:0]"
+      ]
+    },
+    "52": {
+      "name": "GYRO_XOUT_L",
+      "rw": "R",
+      "fields": [
+        "GYRO_XOUT_L[7:0]"
+      ]
+    },
+    "53": {
+      "name": "GYRO_YOUT_H",
+      "rw": "R",
+      "fields": [
+        "GYRO_YOUT_H[7:0]"
+      ]
+    },
+    "54": {
+      "name": "GYRO_YOUT_L",
+      "rw": "R",
+      "fields": [
+        "GYRO_YOUT_L[7:0]"
+      ]
+    },
+    "55": {
+      "name": "GYRO_ZOUT_H",
+      "rw": "R",
+      "fields": [
+        "GYRO_ZOUT_H[7:0]"
+      ]
+    },
+    "56": {
+      "name": "GYRO_ZOUT_L",
+      "rw": "R",
+      "fields": [
+        "GYRO_ZOUT_L[7:0]"
+      ]
+    },
+    "57": {
+      "name": "TEMP_OUT_H",
+      "rw": "R",
+      "fields": [
+        "TEMP_OUT_H[7:0]"
+      ]
+    },
+    "58": {
+      "name": "TEMP_OUT_L",
+      "rw": "R",
+      "fields": [
+        "TEMP_OUT_L[7:0]"
+      ]
+    },
+    "59": {
+      "name": "EXT_SLV_SENS_DATA_00",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_00[7:0]"
+      ]
+    },
+    "60": {
+      "name": "EXT_SLV_SENS_DATA_01",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_01[7:0]"
+      ]
+    },
+    "61": {
+      "name": "EXT_SLV_SENS_DATA_02",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_02[7:0]"
+      ]
+    },
+    "62": {
+      "name": "EXT_SLV_SENS_DATA_03",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_03[7:0]"
+      ]
+    },
+    "63": {
+      "name": "EXT_SLV_SENS_DATA_04",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_04[7:0]"
+      ]
+    },
+    "64": {
+      "name": "EXT_SLV_SENS_DATA_05",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_05[7:0]"
+      ]
+    },
+    "65": {
+      "name": "EXT_SLV_SENS_DATA_06",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_06[7:0]"
+      ]
+    },
+    "66": {
+      "name": "EXT_SLV_SENS_DATA_07",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_07[7:0]"
+      ]
+    },
+    "67": {
+      "name": "EXT_SLV_SENS_DATA_08",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_08[7:0]"
+      ]
+    },
+    "68": {
+      "name": "EXT_SLV_SENS_DATA_09",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_09[7:0]"
+      ]
+    },
+    "69": {
+      "name": "EXT_SLV_SENS_DATA_10",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_10[7:0]"
+      ]
+    },
+    "70": {
+      "name": "EXT_SLV_SENS_DATA_11",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_11[7:0]"
+      ]
+    },
+    "71": {
+      "name": "EXT_SLV_SENS_DATA_12",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_12[7:0]"
+      ]
+    },
+    "72": {
+      "name": "EXT_SLV_SENS_DATA_13",
+      "rw": "R",
+      "fields": [
+        "EXT_SLV_SENS_DATA_13[7:0]"
+      ]
+    },
+    "127": {
+      "name": "BANK",
+      "rw": "R/W",
+      "fields": [
+        "BANK[7:0]"
+      ]
+    }
+  },
+
+  {},
+
+  {
+    "1": {
+      "name": "GYRO_CONFIG_1",
+      "rw": "R",
+    "fields": [
+      "",
+      "",
+      "",
+      "GYRO_DLPFCFG[2:0]",
+      "GYRO_DLPFCFG[2:0]",
+      "GYRO_DLPFCFG[2:0]",
+      "GYRO_FS_SEL[1:0]",
+      "GYRO_FS_SEL[1:0]",
+      "GYRO_FCHOICE"]
+    },
+
+    "20": {
+      "name": "ACCEL_CONFIG",
+      "rw": "R/W",
+      "fields": [
+        "",
+        "",
+        "",
+        "ACCEL_DLPFCFG[2:0]",
+        "ACCEL_DLPFCFG[2:0]",
+        "ACCEL_DLPFCFG[2:0]",
+        "ACCEL_FS_SEL[1:0]",
+        "ACCEL_FS_SEL[1:0]",
+        "ACCEL_FCHOICE"
+      ]
+    },
+    "127": {
+      "name": "BANK",
+      "rw": "R/W",
+      "fields": [
+        "BANK[7:0]"
+      ]
+    }
+  },
+
+  {
+    "1": {
+      "name": "I2C_MST_CTRL",
+      "rw": "R/W",
+      "fields": [
+        "MULT_MST_EN",
+        "",
+        "",
+        "I2C_MST_P_NSR",
+        "I2C_MST_CLK[3:0]",
+        "I2C_MST_CLK[3:0]",
+        "I2C_MST_CLK[3:0]",
+        "I2C_MST_CLK[3:0]"
+      ]
+    },
+    "3": {
+      "name": "I2C_SLV0_ADDR",
+      "rw": "R/W",
+      "fields": [
+        "I2C_SLV0_RNW",
+        "I2C_ID_0[6:0]",
+        "I2C_ID_0[6:0]",
+        "I2C_ID_0[6:0]",
+        "I2C_ID_0[6:0]",
+        "I2C_ID_0[6:0]",
+        "I2C_ID_0[6:0]",
+        "I2C_ID_0[6:0]"
+      ]
+    },
+    "4": {
+      "name": "I2C_SLV0_REG",
+      "rw": "R/W",
+      "fields": [
+        "I2C_SLV0_REG[7:0]",
+        "I2C_SLV0_REG[7:0]",
+        "I2C_SLV0_REG[7:0]",
+        "I2C_SLV0_REG[7:0]",
+        "I2C_SLV0_REG[7:0]",
+        "I2C_SLV0_REG[7:0]",
+        "I2C_SLV0_REG[7:0]",
+        "I2C_SLV0_REG[7:0]"
+      ]
+    },
+    "5": {
+      "name": "I2C_SLV0_CTRL",
+      "rw": "R/W",
+      "fields": [
+        "I2C_SLV0_EN",
+        "I2C_SLV0_BYTE_SW",
+        "I2C_SLV0_REG_DIS",
+        "I2C_SLV0_GRP",
+        "I2C_SLV0_LENG[3:0]",
+        "I2C_SLV0_LENG[3:0]",
+        "I2C_SLV0_LENG[3:0]",
+        "I2C_SLV0_LENG[3:0]"
+      ]
+    },
+    "19":{
+      "name": "I2C_SLV4_ADDR",
+      "rw" : "R/W",
+      "fields" : [
+        "I2C_SLV4_RNW",
+        "I2C_ID_4[6:0]",
+        "I2C_ID_4[6:0]",
+        "I2C_ID_4[6:0]",
+        "I2C_ID_4[6:0]",
+        "I2C_ID_4[6:0]",
+        "I2C_ID_4[6:0]",
+        "I2C_ID_4[6:0]"
+      ]
+    },
+    "20":{
+      "name": "I2C_SLV4_REG",
+      "rw" : "R/W",
+      "fields" : [
+        "I2C_SLV4_REG[7:0]",
+        "I2C_SLV4_REG[7:0]",
+        "I2C_SLV4_REG[7:0]",
+        "I2C_SLV4_REG[7:0]",
+        "I2C_SLV4_REG[7:0]",
+        "I2C_SLV4_REG[7:0]",
+        "I2C_SLV4_REG[7:0]",
+        "I2C_SLV4_REG[7:0]"
+      ]
+    },
+    "21":{
+      "name": "I2C_SLV4_CTRL",
+      "rw" : "R/W",
+      "fields" : [
+        "I2C_SLV4_EN",
+        "I2C_SLV4_BYTE_SW",
+        "I2C_SLV4_REG_DIS",
+        "I2C_SLV4_DLY[4:0]",
+        "I2C_SLV4_DLY[4:0]",
+        "I2C_SLV4_DLY[4:0]",
+        "I2C_SLV4_DLY[4:0]",
+        "I2C_SLV4_DLY[4:0]"
+      ]
+    },
+    "22":{
+      "name": "I2C_SLV4_DO",
+      "rw" : "R/W",
+      "fields" : [
+        "I2C_SLV4_DO[7:0]",
+        "I2C_SLV4_DO[7:0]",
+        "I2C_SLV4_DO[7:0]",
+        "I2C_SLV4_DO[7:0]",
+        "I2C_SLV4_DO[7:0]",
+        "I2C_SLV4_DO[7:0]",
+        "I2C_SLV4_DO[7:0]",
+        "I2C_SLV4_DO[7:0]"
+      ]
+    },
+    "127": {
+      "name": "BANK",
+      "rw": "R/W",
+      "fields": [
+        "BANK[7:0]"
+      ]
+    }
+  }
+]

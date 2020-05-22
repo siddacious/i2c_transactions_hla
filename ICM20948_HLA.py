@@ -1,0 +1,213 @@
+# High Level Analyzer
+# For more information and documentation, please go to https://github.com/saleae/logic2-examples
+#TODO: Measure time between calls/
+import os
+import json
+
+class Transaction:
+    """A class representing a complete read or write transaction between an I2C Master and a slave device with addressable registers"""
+    end_time: float
+    is_multibyte_read: bool
+    is_read: bool
+    start_time: float
+    register_address: int
+    register_str: str
+    _last_addr_frame: int
+    data: bytearray
+
+    def __init__(self, start_time):
+        self.start_time = start_time
+        self.is_multibyte_read = False
+        self.end_time = None
+        self.register_address = None
+        self.register_str = ""
+        self._last_addr_frame = None
+        self.data = bytearray()
+
+    @property
+    def last_address_frame(self):
+        """The last address frame sent by the I2C master to set the target slave
+        and declare if the following frames will be written or read by the master"""
+        return self._last_addr_frame
+
+    @last_address_frame.setter
+    def last_address_frame(self, frame):
+        self._last_addr_frame = frame
+
+    @property
+    def i2c_node_addr(self):
+        """The 7-bit I2C slave address of the target device, derived from the last address frame"""
+        return (self._last_addr_frame & 0x7E)>>1
+
+    @property
+    def is_read(self):
+        """True if the transaction is a read, False if it is a write. Derived from the last
+        address frame before a STOP frame as the initial address frame will always be a write"""
+        return (self._last_addr_frame & 1) > 0
+
+    def __str__(self):
+        out_str = ""
+        if self.last_address_frame:
+            if self.is_read:
+                out_str +=" READ"
+            else:
+                out_str +=" WRITE"
+            # out_str +=" (%s)"%hex(self.i2c_node_addr)
+        if self.register_str and self.register_address:
+            out_str += " %s"%self.register_str
+            out_str += " (%s)"%hex(self.register_address)
+        if len(self.data) > 0:
+            byte_list = [hex(i) for i in self.data]
+            byte_list_str = ", ".join(byte_list)
+            out_str +=" Bytes: [%s]"%(byte_list_str)
+        return out_str
+
+MODE_AUTO_INCREMENT_ADDR_MSB_HIGH = 0
+MODE_AUTO_INCREMENT_DEFAULT = 1
+
+class ICM20948HLA():
+
+    def __init__(self):
+        '''
+        Initialize this HLA.
+
+        If you have any initialization to do before any methods are called, you can do it here.
+        '''
+        print("__INIT__")
+        self.prev_frame = None
+        self.register_map = None
+        self.register_map_file = None
+
+        self.current_transaction = None
+        self.mode = MODE_AUTO_INCREMENT_DEFAULT
+        self.current_bank = 0
+
+    def get_capabilities(self):
+        '''
+        Return the settings that a user can set for this High Level Analyzer. The settings that a user selects will later be passed into `set_settings`.
+
+        This method will be called first, before `set_settings` and `decode`
+        '''
+
+        return {
+            'settings': {
+                'Register map (json)': {
+                    'type': 'string',
+                },
+            }
+        }
+
+    def _load_register_map(self):
+        if os.path.exists(self.register_map_file):
+            with open(self.register_map_file) as f:
+                self.register_map = json.load(f)
+
+    def set_settings(self, settings):
+        '''
+        Handle the settings values chosen by the user, and return information about how to display the results that `decode` will return.
+
+        This method will be called second, after `get_capbilities` and before `decode`.
+        '''
+
+        if 'Register map (json)' in settings:
+            self.register_map_file = settings['Register map (json)']
+            # You can do something with the number setting here
+            self._load_register_map()
+
+        # Here you can specify how output frames will be formatted in the Logic 2 UI
+        # If no format is given for a type, a default formatting will be used
+        # You can include the values from your frame data (as returned by `decode`) by wrapping their name in double braces, as shown below.
+        return {
+            'result_types': {
+                'i2c_frame  ': {
+                    'format': '{{data.out_str}}'
+                },
+                'transaction': {
+                    'format': '{{data.transaction_string}}'
+                }
+            }
+        }
+
+    def process_transaction(self):
+        # TODO: handle register naming and bank setting here
+        new_frame = {
+            'type': 'transaction',
+            'start_time': self.current_transaction.start_time,
+            'end_time': self.current_transaction.end_time,
+            'data': {
+                'transaction_string' : str(self.current_transaction)
+            }
+        }
+
+        return new_frame
+
+    def _process_data_frame(self, frame):
+        byte = frame['data']['data'][0]
+        # TODO:refactor to higher level HLA
+        current_bank = self.register_map[self.current_bank]
+        #  this is a write and ...                   ... this is the first data byte
+        is_write = not self.current_transaction.is_read
+        if is_write:
+            if self.current_transaction.register_address is None:
+                byte &= 0x7F # clear any MSB used for auto increment
+                self.current_transaction.register_address = byte
+
+                # TODO:refactor to higher level HLA
+                if str(byte) in current_bank.keys():
+                    reg_name = current_bank[str(byte)]['name']
+                    self.current_transaction.register_str = reg_name
+                else:
+                    reg_str = "UNKNOWN[%s]"%hex(byte)
+                    print(" \t\t**** %s *****"%reg_str)
+                    self.current_transaction.register_str = reg_str
+                return
+            else:
+
+                # TODO:refactor to higher level HLA
+                if self.current_transaction.register_str == "BANK" and len(self.current_transaction.data)== 0:
+                    bank_val = (byte & 0x30)>>4
+                    self.current_bank = bank_val
+
+        self.current_transaction.data.append(byte)
+
+    def _process_address_frame(self, frame):
+        address_frame_data = frame['data']['address'][0]
+        if self.current_transaction is None: return
+        self.current_transaction.last_address_frame = address_frame_data
+
+    def _process_start_frame(self, frame):
+        if self.current_transaction: # repeated start
+            return
+        self.current_transaction = Transaction(frame['start_time'])
+
+    def _process_stop_frame(self, frame):
+        if self.current_transaction is None:
+            return
+
+        self.current_transaction.end_time = frame['end_time']
+        new_frame = self.process_transaction()
+        self.current_transaction = None
+
+        return new_frame
+
+    def decode(self, frame):
+        frame_type = frame['type']
+        new_frame = None
+        if frame_type == 'address': # read or write + I2C slave addr
+            self._process_address_frame(frame)
+        elif frame_type == 'data': # register address and data
+            self._process_data_frame(frame)
+        elif frame_type == 'start': # begin new transaction or repeated start
+            self._process_start_frame(frame)
+        elif frame_type == 'stop': # transaction end, ready to process
+            new_frame = self._process_stop_frame(frame)
+
+        self.prev_frame = frame
+        # if self.current_transaction:
+        #     print(self.current_transaction)
+
+        if new_frame is not None:
+            print("\nNEW_FRAME:")
+            for k, v in new_frame.items():
+                print("\t%s=>%s"%(k,v))
+            return new_frame

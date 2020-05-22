@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "apiVersion": "1.0.0",
+  "author": "Untitled",
+  "description": "",
+  "name": "ICM20948 tester",
+  "extensions": {
+    "ICMHLA_test": {
+      "type": "HighLevelAnalyzer",
+      "entryPoint": "ICM20948_HLA.ICM20948HLA"
+    }
+  }
+}
