@@ -73,6 +73,7 @@ class I2CRegisterTransactions():
         If you have any initialization to do before any methods are called, you can do it here.
         '''
         self.prev_frame = None
+        self.current_frame = None
         self.current_transaction = None
         self._debug = False
 
@@ -158,7 +159,10 @@ class I2CRegisterTransactions():
         if address_key in self.current_map.keys():
             register_name = self.current_map[address_key]['name']
         else:
-            register_name = "UNKNOWN[%s]"%hex(address_key)
+            register_name = "UNKNOWN[%s]"%hex(address_byte)
+            print("\tUNKNOWN: ", hex(address_byte))
+            print("\tUNKNOWN: frame:", str(self.current_frame))
+            print("\tUNKNOWN: transaction:", str(txn))
 
         txn.register_name = register_name
         txn.register_address = address_byte
@@ -203,8 +207,10 @@ class I2CRegisterTransactions():
         return new_frame
 
     def decode(self, frame):
+        self.current_frame = frame
         new_frame = None
         frame_type = frame['type']
+
         if self._debug: print(frame_type.upper())
 
         if frame_type == 'start': # begin new transaction or repeated start

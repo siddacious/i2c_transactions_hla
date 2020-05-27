@@ -392,6 +392,20 @@
       "GYRO_FCHOICE"]
     },
 
+    "16": {
+      "name": "ACCEL_SMPLRT_DIV_1",
+      "rw": "R/W",
+      "fields": [
+        "ACCEL_SMPLRT_DIV[11:8]",
+        "ACCEL_SMPLRT_DIV[11:8]",
+        "ACCEL_SMPLRT_DIV[11:8]",
+        "ACCEL_SMPLRT_DIV[11:8]",
+        "ACCEL_SMPLRT_DIV[11:8]",
+        "ACCEL_SMPLRT_DIV[11:8]",
+        "ACCEL_SMPLRT_DIV[11:8]",
+        "ACCEL_SMPLRT_DIV[11:8]"
+      ]
+    },
     "20": {
       "name": "ACCEL_CONFIG",
       "rw": "R/W",
