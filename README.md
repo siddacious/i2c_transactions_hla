@@ -15,5 +15,15 @@ Possible additions:
 * Write to file
 * User provided format strings?
 
+## Usage/Docs
+Basic installation instructions from the code this was ripped off from:
+
+https://github.com/saleae/logic2-extensions/tree/master/hla_gyroscope#try-it-for-yourself
+
+I'll update this section later as I polish things up
+
+Here's Saleae's docs on how High Level Analyzers can be written:
+
+https://github.com/saleae/logic2-extensions#high-level-protocol-analyzers
 ## Attribution
 Derived from the [Example Gyroscope HLA](https://github.com/saleae/logic2-extensions/tree/master/hla_gyroscope) by [Ryan Huffman](https://github.com/huffman)
