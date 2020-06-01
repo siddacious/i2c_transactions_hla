@@ -216,8 +216,7 @@ class RegisterDecoder:
 
 
 if __name__ == "__main__":
-    banks_dict = {}
-    # print("\n************* Reading Register Map ****************\n")
+
 
     decoder = RegisterDecoder(
         csv_files=["bank0.csv", "bank1.csv", "bank2.csv", "bank3.csv"]
