@@ -120,9 +120,9 @@ class RegisterDecoder:
 
     def _decode_set_value(self, rw, reg_addr, value_byte):
         print(rw, reg_addr, value_byte)
-        print("current_bank:", self.current_bank, "type", type(self.current_bank))
-        print("reg_addr:", reg_addr)
-        print("map_keys:", self.register_map.keys())
+        # print("current_bank:", self.current_bank, "type", type(self.current_bank))
+        # print("reg_addr:", reg_addr)
+        # print("map_keys:", self.register_map.keys())
         current_register = self.register_map[self.current_bank][reg_addr]
 
         # TODO: check this by name
@@ -143,10 +143,12 @@ class RegisterDecoder:
         self._decode_bitfields(bitwise_diffs, current_register, value_byte)
         print("")
 
+    # in: bitswise diffs? current_reg current value
     def _decode_bitfields(self, bitwise_diffs, current_register, value_byte):
         for bitfield_def, group_iterator in self._group_bitwise_diffs_by_bitfield_def(bitwise_diffs, current_register):
 
             match = re.fullmatch(BITFIELD_REGEX, bitfield_def)
+            print("\t\tbitfield def: %s(%s)"%(bitfield_def, type(bitfield_def)))
             # NAMED BITFIELD UPDATED
             if match: #
                 name, msb_str, lsb_str = match.groups()
@@ -157,13 +159,34 @@ class RegisterDecoder:
             # SINGLE BIT W/ NAME
             else:
                 group = list(group_iterator)
+                print("\t\tsingle named bit group:")
+                print("\t\t", group)
                 bitfield_name = bitfield_def
                 bitfield_value = bool(group[0][1])
-                print("\t%s is now zzet to %s"%(bitfield_name, bitfield_value))
-
+                print("\t%s is now set to %s"%(bitfield_name, bitfield_value))
+    # https://stackoverflow.com/questions/50705563/proper-way-to-do-bitwise-difference-python-2-7
+    # b_minus_a = b & ~a
+    # a_minus_b = a & ~b
+    # two values, represented by 2 and 4.
+    # >>> b, a = 0b110, 0b1010
+    # >>> b & ~a
+    # 4
+    # >>> bin(_)
+    # 0b100
+    # # By union they form a set, the value 6. (110)
+    # I then have a second set, decimal value 10(binary 1010), which is 2 and 8.
     def _bitwise_diff(self, old_value, new_value):
+        #  out should be a set mask and an unset mask
         if old_value is None:
             old_value = 0
+        print("*"*24)
+        set_bitmask =  (new_value & (~old_value))
+        unset_bitmask = (old_value & (~new_value))
+        print("old        ", self._b(old_value))
+        print("new        ", self._b(new_value))
+        print("unset bits ",self._b(unset_bitmask))
+        print("set bits   ", self._b(set_bitmask))
+        print("*"*24)
         changed_bits = old_value ^ new_value
         changes = []
         for shift in range(7, -1, -1):
@@ -171,6 +194,12 @@ class RegisterDecoder:
                 new_bit_value = (new_value & 1<<shift) >> shift
                 changes.append((shift, new_bit_value))
         return changes
+############ PULL THIS SECTION OUT/REDO W/ MASKS #############
+    def _group_bitwise_diffs_by_bitfield_def(self, bitwise_diffs, register_def):
+
+        bitfield_def = lambda x: register_def[x[0]]
+        print("\n\n\n", "*"*50, "\n",register_def, "\n", bitwise_diffs)
+        return itertools.groupby(bitwise_diffs, bitfield_def)
 
 
     def _extract_bitfield_val_from_byte(self, value_byte, msb, lsb):
@@ -184,15 +213,13 @@ class RegisterDecoder:
 
         return bitfield_value
 
+#############################################################
+
     def _reg_known(self, b0):
         return b0 in self.register_map[self.current_bank].keys()
 
     def _reg_name(self, b0):
         return self.register_map[self.current_bank][b0]["name"]
-
-    def _group_bitwise_diffs_by_bitfield_def(self, bitwise_diffs, register_def):
-        bitfield_def = lambda x: register_def[x[0]]
-        return itertools.groupby(bitwise_diffs, bitfield_def)
 
     def _h(self, num):
         return "0x%s" % format(num, "02X")
@@ -201,24 +228,6 @@ class RegisterDecoder:
         return "0b %s %s" % (format(num >> 4, "04b"), format((num & 0b1111), "04b"))
         # return format(num, "#010b")
 
-    def parse_csv_bank(self, filename, bank_number=0):
-        bank = self.register_map[bank_number]
-        with open(filename, newline="") as csvfile:
-            bank_dict_reader = csv.DictReader(csvfile)
-            # ['ADDR (HEX)', 'ADDR (DEC.)', 'REGISTER NAME', 'SERIAL I/F', 'BIT7', 'BIT6', 'BIT5', 'BIT4', 'BIT3', 'BIT2', 'BIT1', 'BIT0']
-            for row in bank_dict_reader:
-                reg = {}
-                # verbose_debug(row)
-                reg["name"] = row["REGISTER NAME"]
-                dec_addr = row["ADDR (DEC.)"]
-                address= int(dec_addr)
-                reg["address"] = address
-                for bit_index in range(8):
-                    reg[bit_index] = row["BIT%d"%bit_index]
-                reg['last_read_value'] = None
-                bank[address] = reg
-
-
 if __name__ == "__main__":
     if len(argv) < 3:
         raise RuntimeError("poo")
@@ -226,16 +235,11 @@ if __name__ == "__main__":
     map_loader = None
 
     if source_files[0].endswith(".json"):
-        # print("using json map_loader loader")
         from register_decoder.map_loader.json_loader import JSONRegisterMapLoader
         map_loader = JSONRegisterMapLoader(source_files[0])
     elif source_files[0].endswith(".csv"):
-        # print("using csv map_loader loader")
         from register_decoder.map_loader.csv_loader import CSVRegisterMapLoader
         map_loader = CSVRegisterMapLoader(source_files)
-    # print("MAP:", pprint(map_loader.map))
-    # print(map_loader)
-    # print("map?:", map_loader.map)
     if map_loader.map is None :
         raise AttributeError("MAP is None")
     print("\n************* Making Decoder *****************************\n")
