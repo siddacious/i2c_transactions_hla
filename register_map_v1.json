@@ -378,6 +378,21 @@
 
   {
     "1": {
+      "name": "GYRO_SMPLRT_DIV",
+      "rw": "R/W",
+    "fields": [
+      "GYRO_SMPLRT_DIV[7:0]",
+      "GYRO_SMPLRT_DIV[7:0]",
+      "GYRO_SMPLRT_DIV[7:0]",
+      "GYRO_SMPLRT_DIV[7:0]",
+
+      "GYRO_SMPLRT_DIV[7:0]",
+      "GYRO_SMPLRT_DIV[7:0]",
+      "GYRO_SMPLRT_DIV[7:0]",
+      "GYRO_SMPLRT_DIV[7:0]"
+      ]
+    },
+    "1": {
       "name": "GYRO_CONFIG_1",
       "rw": "R",
     "fields": [
@@ -541,6 +556,20 @@
         "I2C_SLV4_DO[7:0]",
         "I2C_SLV4_DO[7:0]",
         "I2C_SLV4_DO[7:0]"
+      ]
+    },
+    "23":{
+      "name": "I2C_SLV4_DI",
+      "rw" : "R/W",
+      "fields" : [
+        "I2C_SLV4_DI[7:0]",
+        "I2C_SLV4_DI[7:0]",
+        "I2C_SLV4_DI[7:0]",
+        "I2C_SLV4_DI[7:0]",
+        "I2C_SLV4_DI[7:0]",
+        "I2C_SLV4_DI[7:0]",
+        "I2C_SLV4_DI[7:0]",
+        "I2C_SLV4_DI[7:0]"
       ]
     },
     "127": {

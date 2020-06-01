@@ -109,8 +109,12 @@ class I2CRegisterTransactions():
 
     def _load_register_map(self):
         if os.path.exists(self.register_map_file):
+            print("loading register map from %s"%self.register_map_file)
             with open(self.register_map_file) as f:
                 self.register_map = json.load(f)
+        else:
+            raise FileNotFoundError("no register map found at %s"%self.register_map_file)
+
         self.current_map = self.register_map[0]
 
     def set_settings(self, settings):
@@ -119,10 +123,13 @@ class I2CRegisterTransactions():
 
         This method will be called second, after `get_capbilities` and before `decode`.
         '''
-
-        if 'Register map (json)' in settings:
+        if 'Register map (json)' in settings and settings['Register map (json)']:
             self.register_map_file = settings['Register map (json)']
-            self._load_register_map()
+            print("File is '%s'"%self.register_map_file)
+        else:
+            print("No register map provided...", end="")
+            self.register_map_file = '/Users/bs/dev/logic_hlas/i2c_txns/register_map_v1.json'
+        self._load_register_map()
 
         if 'Multi-byte auto-increment mode' in settings:
             mode_setting = settings['Multi-byte auto-increment mode']
@@ -159,6 +166,7 @@ class I2CRegisterTransactions():
         if address_key in self.current_map.keys():
             register_name = self.current_map[address_key]['name']
         else:
+            # TODO: WRITE UNKNOWN DOES NOT DISPLAY CORRECTLY, READ UNKNOWN DOES
             register_name = "UNKNOWN[%s]"%hex(address_byte)
             print("\tUNKNOWN: ", hex(address_byte))
             print("\tUNKNOWN: frame:", str(self.current_frame))
