@@ -1,8 +1,11 @@
 from sys import argv
 from csv import DictReader
-class CSVRegisterMapLoader:
+from register_decoder.map_loader import RegisterMapLoader
+import json
+class CSVRegisterMapLoader(RegisterMapLoader):
     def __init__(self, csv_files=None, serial_device=None):
-        self.map = {0: {}, 1: {}, 2: {}, 3: {}, -1:{127:{'name': 'REG_BANK_SEL', 'address': 127, 0: '', 1: '', 2: '', 3: '', 4: 'USER_BANK[1:0]', 5: 'USER_BANK[1:0]', 6: '', 7: '', 'last_read_value': None}}}
+        self._map = {0: {}, 1: {}, 2: {}, 3: {}, -1:{127:{'name': 'REG_BANK_SEL', 'address': 127, 0: '', 1: '', 2: '', 3: '', 4: 'USER_BANK[1:0]', 5: 'USER_BANK[1:0]', 6: '', 7: '', 'last_read_value': None}}}
+        print("CSV files:", csv_files)
         for index, csv_file in enumerate(csv_files):
             self.parse_csv_bank(csv_file, index)
         # when to clear? consume on read match
@@ -29,4 +32,5 @@ class CSVRegisterMapLoader:
 if __name__ == "__main__":
 
     loader = CSVRegisterMapLoader(argv[1:])
-    print(loader.map)
+    # print(loader.map)
+    print(json.dumps(loader.map))

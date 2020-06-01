@@ -4,6 +4,8 @@ import csv
 import re
 import itertools
 
+from sys import argv
+
 DEBUG = False
 VERBOSE = False
 ROW_NUMBER_OFFSET = 2
@@ -26,11 +28,9 @@ def verbose_debug(*args, **kwargs):
         verbose_print("DEBUG:", *args, **kwargs)
 
 class RegisterDecoder:
-    def __init__(self, csv_files=None, serial_device=None):
-        self.banks_dict = {0: {}, 1: {}, 2: {}, 3: {}, -1:{127:{'name': 'REG_BANK_SEL', 'address': 127, 0: '', 1: '', 2: '', 3: '', 4: 'USER_BANK[1:0]', 5: 'USER_BANK[1:0]', 6: '', 7: '', 'last_read_value': None}}}
-        for index, csv_file in enumerate(csv_files):
-            self.parse_csv_bank(csv_file, index)
-        # when to clear? consume on read match
+    def __init__(self, register_map=None):
+        self.register_map = register_map
+        print(register_map)
         self.prev_single_byte_write = None
         self.current_bank = -1
 
@@ -55,6 +55,8 @@ class RegisterDecoder:
         # TODO: Add support for an arbitrary number of bytes
         # check for a first byte
         b0 = int(row["byte0"], 16)
+
+        print(rw, b0, end="")
         # like UNKNOWN
         if rw == "WRITE" and (b0 != 0x7F) and (not self._reg_known(b0)):
             print(
@@ -73,7 +75,7 @@ class RegisterDecoder:
         # check for a second byte
         if "byte1" in row.keys() and len(row["byte1"].strip()) > 0:
             b1 = int(row["byte1"], 16)
-
+        print("",b1)
         verbose_print("\tRow number:", row_num, "row:", row)
 
         ########### Decode #################
@@ -91,12 +93,12 @@ class RegisterDecoder:
     def _single_byte_decode(self, rw, b0):
 
         if rw == "WRITE":
-            current_register = self.banks_dict[self.current_bank][b0]
+            current_register = self.register_map[self.current_bank][b0]
 
             print("\n\tSETRD %s (%s)" % (self._reg_name(b0), self._h(b0)))
             self.prev_single_byte_write = b0
         else:
-            current_register = self.banks_dict[self.current_bank][self.prev_single_byte_write]
+            current_register = self.register_map[self.current_bank][self.prev_single_byte_write]
 
             if (
                 self.prev_single_byte_write != None
@@ -118,8 +120,10 @@ class RegisterDecoder:
 
     def _decode_set_value(self, rw, reg_addr, value_byte):
         print(rw, reg_addr, value_byte)
-
-        current_register = self.banks_dict[self.current_bank][reg_addr]
+        print("current_bank:", self.current_bank, "type", type(self.current_bank))
+        print("reg_addr:", reg_addr)
+        print("map_keys:", self.register_map.keys())
+        current_register = self.register_map[self.current_bank][reg_addr]
 
         # TODO: check this by name
         # ******* SET BANK **************
@@ -181,10 +185,10 @@ class RegisterDecoder:
         return bitfield_value
 
     def _reg_known(self, b0):
-        return b0 in self.banks_dict[self.current_bank].keys()
+        return b0 in self.register_map[self.current_bank].keys()
 
     def _reg_name(self, b0):
-        return self.banks_dict[self.current_bank][b0]["name"]
+        return self.register_map[self.current_bank][b0]["name"]
 
     def _group_bitwise_diffs_by_bitfield_def(self, bitwise_diffs, register_def):
         bitfield_def = lambda x: register_def[x[0]]
@@ -198,7 +202,7 @@ class RegisterDecoder:
         # return format(num, "#010b")
 
     def parse_csv_bank(self, filename, bank_number=0):
-        bank = self.banks_dict[bank_number]
+        bank = self.register_map[bank_number]
         with open(filename, newline="") as csvfile:
             bank_dict_reader = csv.DictReader(csvfile)
             # ['ADDR (HEX)', 'ADDR (DEC.)', 'REGISTER NAME', 'SERIAL I/F', 'BIT7', 'BIT6', 'BIT5', 'BIT4', 'BIT3', 'BIT2', 'BIT1', 'BIT0']
@@ -216,11 +220,26 @@ class RegisterDecoder:
 
 
 if __name__ == "__main__":
+    if len(argv) < 3:
+        raise RuntimeError("poo")
+    source_files = sys.argv[2:]
+    map_loader = None
 
-
-    decoder = RegisterDecoder(
-        csv_files=["bank0.csv", "bank1.csv", "bank2.csv", "bank3.csv"]
-    )
+    if source_files[0].endswith(".json"):
+        # print("using json map_loader loader")
+        from register_decoder.map_loader.json_loader import JSONRegisterMapLoader
+        map_loader = JSONRegisterMapLoader(source_files[0])
+    elif source_files[0].endswith(".csv"):
+        # print("using csv map_loader loader")
+        from register_decoder.map_loader.csv_loader import CSVRegisterMapLoader
+        map_loader = CSVRegisterMapLoader(source_files)
+    # print("MAP:", pprint(map_loader.map))
+    # print(map_loader)
+    # print("map?:", map_loader.map)
+    if map_loader.map is None :
+        raise AttributeError("MAP is None")
+    print("\n************* Making Decoder *****************************\n")
+    decoder = RegisterDecoder(register_map=map_loader.map)
     print("\n************* Parsing *****************************\n")
     with open(sys.argv[1], newline="") as csvfile:
         reader = csv.DictReader(csvfile)
