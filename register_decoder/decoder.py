@@ -164,6 +164,28 @@ class RegisterDecoder:
                 bitfield_name = bitfield_def
                 bitfield_value = bool(group[0][1])
                 print("\t%s is now set to %s"%(bitfield_name, bitfield_value))
+
+        return bitfield_changes # [(unset_bitfield_mask, set_bitfield_mask)]
+    #################### new-style bitfield parsing/mapping #############################
+    def bitfield_masks(self, bitfields):
+        bitfield_masks = {}
+        # convert list of 
+        # "0": "GYRO_FCHOICE",
+        # "1": "GYRO_FS_SEL[1:0]",
+        # "2": "GYRO_FS_SEL[1:0]",
+        # "3": "GYRO_DLPFCFG[2:0]",
+        # "4": "GYRO_DLPFCFG[2:0]",
+        # "5": "GYRO_DLPFCFG[2:0]",
+        # "6": "",
+        # "7": "",
+        # to
+        # bitfield_masks = {
+        #     0b00000001 : "GYRO_FCHOICE",
+        #     0b00000110 : "GYRO_FS_SEL",
+        #     0b00111000 : "GYRO_DLPFCFG"
+        # }
+        return bitfield_masks
+
     # https://stackoverflow.com/questions/50705563/proper-way-to-do-bitwise-difference-python-2-7
     # b_minus_a = b & ~a
     # a_minus_b = a & ~b
@@ -175,18 +197,28 @@ class RegisterDecoder:
     # 0b100
     # # By union they form a set, the value 6. (110)
     # I then have a second set, decimal value 10(binary 1010), which is 2 and 8.
+
+    def _bitwise_diff2(self, old_value, new_value):
+        if old_value is None:
+            old_value = 0
+        set_bitmask =  (new_value & (~old_value))
+        unset_bitmask = (old_value & (~new_value))
+        # print("*"*24)
+        # print("old        ", self._b(old_value))
+        # print("new        ", self._b(new_value))
+        # print("unset bits ",self._b(unset_bitmask))
+        # print("set bits   ", self._b(set_bitmask))
+        # print("*"*24)
+        return (unset_bitmask, set_bitmask)
+
+    def _bitfield_changes(self, bitfield_masks, unset_bitmask, set_bitmask):
+        bitfield_changes = []
+    ###############################################################
     def _bitwise_diff(self, old_value, new_value):
         #  out should be a set mask and an unset mask
         if old_value is None:
             old_value = 0
-        print("*"*24)
-        set_bitmask =  (new_value & (~old_value))
-        unset_bitmask = (old_value & (~new_value))
-        print("old        ", self._b(old_value))
-        print("new        ", self._b(new_value))
-        print("unset bits ",self._b(unset_bitmask))
-        print("set bits   ", self._b(set_bitmask))
-        print("*"*24)
+
         changed_bits = old_value ^ new_value
         changes = []
         for shift in range(7, -1, -1):
