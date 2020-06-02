@@ -18,6 +18,8 @@ def debug_print(*args, **kwargs):
     if DEBUG:
         print("\t\t\t\t\tDEBUG:", *args, **kwargs)
 
+def newp(new_s, tabs=6):
+    print("%s         \t%s"%("\t"*tabs, new_s))
 
 def verbose_print(*args, **kwargs):
     if VERBOSE:
@@ -59,7 +61,7 @@ class RegisterDecoder:
         print(rw, b0, end="")
         # like UNKNOWN
         if rw == "WRITE" and (b0 != 0x7F) and (not self._reg_known(b0)):
-            print(
+            verbose_print(
                 "\n\t\tBAD KEY:",
                 b0,
                 "(%s)" % self._h(b0),
@@ -117,59 +119,54 @@ class RegisterDecoder:
             else:
                 raise ("UNEXPECTED READ WITHOUT PREV WRITE")
 
-
-    def _decode_set_value(self, rw, reg_addr, value_byte):
-        print(rw, reg_addr, value_byte)
-        # print("current_bank:", self.current_bank, "type", type(self.current_bank))
-        # print("reg_addr:", reg_addr)
-        # print("map_keys:", self.register_map.keys())
-        current_register = self.register_map[self.current_bank][reg_addr]
-
-        # TODO: check this by name
-        # ******* SET BANK **************
-        if reg_addr == 0x7F:
-            self.current_bank = value_byte >> 4
-            return
-        # ****IDENTIFIED WRITE TO REG W/ NEW VALUE ***
-        print("SET %s to %s (%s)" % (self._reg_name(reg_addr),  self._b(value_byte), self._h(value_byte)))
+    # in: bitswise diffs? current_reg current value
+    def _decode_bitfields(self, current_register, new_value):
         old_value = current_register['last_read_value']
-        # FIND BITS THAT HAVE CHANGED
-        bitwise_diffs = self._bitwise_diff(old_value, value_byte)
+        bitfields = self._get_bitfields(current_register)
 
-        # NOTHING CHANGED
-        if len(bitwise_diffs) is 0:
-            return
-
-        self._decode_bitfields(bitwise_diffs, current_register, value_byte)
-        print("")
+        unset_bitmask, set_bitmask = self._bitwise_diff2(old_value, new_value)
+        for bf_name, bf_mask in bitfields:
+            newp("'%s' =>%s"%(bf_name, format(bf_mask, "#010b")), 3)
+            if (bf_mask & unset_bitmask) or (bf_mask & set_bitmask):
+                newp("%s was changed"%bf_name)
+                continue
 
     # in: bitswise diffs? current_reg current value
-    def _decode_bitfields(self, bitwise_diffs, current_register, value_byte):
-        for bitfield_def, group_iterator in self._group_bitwise_diffs_by_bitfield_def(bitwise_diffs, current_register):
+    def _get_bitfields(self, current_register):
+        if 'bitfields' not in current_register:
+            bitfields = []
+            prev_bitfield = None
+            for idx in range(8):
+                bitfield_def = current_register[idx]
+                bitfield = self.extract_bitfield_mask(bitfield_def, idx)
+                if prev_bitfield == bitfield or (not bitfield[0]):
+                    continue
+                bitfields.append(bitfield)
+                prev_bitfield = bitfield
+            current_register['bitfields'] = bitfields
+        return current_register['bitfields']
+        bitfields
 
-            match = re.fullmatch(BITFIELD_REGEX, bitfield_def)
-            print("\t\tbitfield def: %s(%s)"%(bitfield_def, type(bitfield_def)))
-            # NAMED BITFIELD UPDATED
-            if match: #
-                name, msb_str, lsb_str = match.groups()
-                bitfield_msb = int(msb_str)
-                bitfield_lsb = int(lsb_str)
-                bitfield_value = self._extract_bitfield_val_from_byte(value_byte, bitfield_msb, bitfield_lsb)
-                print("\t%s"%name,  "now HHet to", self._h(bitfield_value)) # check that this is called when we know the old value
-            # SINGLE BIT W/ NAME
-            else:
-                group = list(group_iterator)
-                print("\t\tsingle named bit group:")
-                print("\t\t", group)
-                bitfield_name = bitfield_def
-                bitfield_value = bool(group[0][1])
-                print("\t%s is now set to %s"%(bitfield_name, bitfield_value))
+    def extract_bitfield_mask(self, bitfield_def, idx):
+        match = re.fullmatch(BITFIELD_REGEX, bitfield_def)
+        # NAMED BITFIELD UPDATED
+        if match: #
+            bitfield_name, bf_end, bf_start = match.groups()
+            bf_end = int(bf_end)
+            bf_start = int(bf_start)
+            bitfield_width_exponent = (bf_end-bf_start)+1
+            # (2^2)-1 =>> (2**2)-1 = 4-1 =>> 3 -> 0b11 or 2^3 -1 = 8-1 = 7 -> 0b111
+            bitfield_mask = (2**bitfield_width_exponent)-1
+        # SINGLE BIT W/ NAME
+        else:
+            bitfield_name = bitfield_def
+            bitfield_mask = (1 << idx)
+        return (bitfield_name, bitfield_mask)
 
-        return bitfield_changes # [(unset_bitfield_mask, set_bitfield_mask)]
     #################### new-style bitfield parsing/mapping #############################
     def bitfield_masks(self, bitfields):
         bitfield_masks = {}
-        # convert list of 
+        # convert list of
         # "0": "GYRO_FCHOICE",
         # "1": "GYRO_FS_SEL[1:0]",
         # "2": "GYRO_FS_SEL[1:0]",
@@ -189,14 +186,6 @@ class RegisterDecoder:
     # https://stackoverflow.com/questions/50705563/proper-way-to-do-bitwise-difference-python-2-7
     # b_minus_a = b & ~a
     # a_minus_b = a & ~b
-    # two values, represented by 2 and 4.
-    # >>> b, a = 0b110, 0b1010
-    # >>> b & ~a
-    # 4
-    # >>> bin(_)
-    # 0b100
-    # # By union they form a set, the value 6. (110)
-    # I then have a second set, decimal value 10(binary 1010), which is 2 and 8.
 
     def _bitwise_diff2(self, old_value, new_value):
         if old_value is None:
@@ -213,6 +202,7 @@ class RegisterDecoder:
 
     def _bitfield_changes(self, bitfield_masks, unset_bitmask, set_bitmask):
         bitfield_changes = []
+        return bitfield_changes # [(unset_bitfield_mask, set_bitfield_mask)]
     ###############################################################
     def _bitwise_diff(self, old_value, new_value):
         #  out should be a set mask and an unset mask
@@ -226,11 +216,56 @@ class RegisterDecoder:
                 new_bit_value = (new_value & 1<<shift) >> shift
                 changes.append((shift, new_bit_value))
         return changes
+
+
+
+    def _decode_set_value(self, rw, reg_addr, value_byte):
+        current_register = self.register_map[self.current_bank][reg_addr]
+
+        # TODO: check this by name
+        # ******* SET BANK **************
+        if reg_addr == 0x7F:
+            self.current_bank = value_byte >> 4
+            return
+        # ****IDENTIFIED WRITE TO REG W/ NEW VALUE ***
+        print("SET %s to %s (%s)" % (self._reg_name(reg_addr),  self._b(value_byte), self._h(value_byte)))
+        old_value = current_register['last_read_value']
+        # FIND BITS THAT HAVE CHANGED
+        bitwise_diffs = self._bitwise_diff(old_value, value_byte)
+
+        # NOTHING CHANGED
+        if len(bitwise_diffs) is 0:
+            return
+        print("")
+        self._decode_bitfields_old(bitwise_diffs, current_register, value_byte)
+        self._decode_bitfields(current_register, value_byte)
+        print("")
+
+    # in: bitswise diffs? current_reg current value
+    def _decode_bitfields_old(self, bitwise_diffs, current_register, value_byte):
+        for bitfield_def, group_iterator in self._group_bitwise_diffs_by_bitfield_def(bitwise_diffs, current_register):
+
+            match = re.fullmatch(BITFIELD_REGEX, bitfield_def)
+            # NAMED BITFIELD UPDATED
+            if match: #
+                name, msb_str, lsb_str = match.groups()
+                bitfield_msb = int(msb_str)
+                bitfield_lsb = int(lsb_str)
+                bitfield_value = self._extract_bitfield_val_from_byte(value_byte, bitfield_msb, bitfield_lsb)
+                print("\t\t\t***OLD CONTIG**\t %s"%name,  "now set to", self._h(bitfield_value)) # check that this is called when we know the old value
+            # SINGLE BIT W/ NAME
+            else:
+                group = list(group_iterator)
+                bitfield_name = bitfield_def
+                bitfield_value = bool(group[0][1])
+                print("\t\t\t***OLD SINGLE**\t %s is now set to %s"%(bitfield_name, bitfield_value))
+
+
 ############ PULL THIS SECTION OUT/REDO W/ MASKS #############
     def _group_bitwise_diffs_by_bitfield_def(self, bitwise_diffs, register_def):
 
         bitfield_def = lambda x: register_def[x[0]]
-        print("\n\n\n", "*"*50, "\n",register_def, "\n", bitwise_diffs)
+        # print("\n\n\n", "*"*50, "\n",register_def, "\n", bitwise_diffs)
         return itertools.groupby(bitwise_diffs, bitfield_def)
 
 
@@ -274,9 +309,9 @@ if __name__ == "__main__":
         map_loader = CSVRegisterMapLoader(source_files)
     if map_loader.map is None :
         raise AttributeError("MAP is None")
-    print("\n************* Making Decoder *****************************\n")
+
     decoder = RegisterDecoder(register_map=map_loader.map)
-    print("\n************* Parsing *****************************\n")
+
     with open(sys.argv[1], newline="") as csvfile:
         reader = csv.DictReader(csvfile)
         for row_num, row in enumerate(reader):
