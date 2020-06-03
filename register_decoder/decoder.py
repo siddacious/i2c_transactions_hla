@@ -136,7 +136,6 @@ class RegisterDecoder:
         if rw == "WRITE":
             current_register = self.register_map[self.current_bank][b0]
             bitfields = self.load_bitfields(current_register)
-            print("\n\tSETRD %s (%s)" % (self._reg_name(b0), self._h(b0)))
             self.prev_single_byte_write = b0
         else:
             current_register = self.register_map[self.current_bank][self.prev_single_byte_write]
@@ -144,8 +143,7 @@ class RegisterDecoder:
             if (
                 self.prev_single_byte_write != None
             ):  # isn't this always going to be set in this case? for normal register'd i2c yes.
-                print("\t_READ %s (%s)" % (self._b(b0), self._h(b0)))
-                print(
+                debug_print(
                     "%s read as %s (%s)"
                     % (
                         self._reg_name(self.prev_single_byte_write),
@@ -168,12 +166,10 @@ class RegisterDecoder:
             self.current_bank = value_byte >> 4
             return
         # ****IDENTIFIED WRITE TO REG W/ NEW VALUE ***
-        print("SET %s to %s (%s)" % (self._reg_name(reg_addr),  self._b(value_byte), self._h(value_byte)))
+        debug_print("SET %s to %s (%s)" % (self._reg_name(reg_addr),  self._b(value_byte), self._h(value_byte)))
         old_value = current_register['last_read_value']
 
-        print("")
         self.decode_by_bitfield(current_register, value_byte)
-        print("")
 
     def decode_by_bitfield(self, current_register, new_value):
         old_value = current_register['last_read_value']
@@ -193,9 +189,9 @@ class RegisterDecoder:
         change_str = None
         if bf_mask>>bf_shift == 0b1:
             if (bf_mask & unset_bitmask):
-                change_str = "\t\t%s was unset"%bf_name
+                change_str = "%s was unset"%bf_name
             if (bf_mask & set_bitmask):
-                change_str = "\t\t%s was set"%bf_name
+                change_str = "%s was set"%bf_name
         else:
             if (bf_mask & unset_bitmask) or (bf_mask & set_bitmask):
                 bf_value = (bf_mask & new_value)>>bf_shift
@@ -203,7 +199,7 @@ class RegisterDecoder:
                     bf_value = hardcoded_cvs[bf_name][bf_value]
                 else:
                     bf_value = hex(bf_value)
-                change_str = "\t\t%s was changed to %s"%(bf_name, bf_value)
+                change_str = "%s was changed to %s"%(bf_name, bf_value)
 
         return change_str
 
@@ -217,7 +213,7 @@ class RegisterDecoder:
 
                 if not bitfield_name or (prev_bitfield_name == bitfield_name):
                     continue
-                # print("name:", bitfield_name, "mask: %s shift: %d"%(format(bitfield_mask,"#010b"), bitfield_shift))
+
                 bitfields.append((bitfield_name, bitfield_mask, bitfield_shift))
                 prev_bitfield_name = bitfield_name
             current_register['bitfields'] = bitfields
@@ -231,7 +227,6 @@ class RegisterDecoder:
             bf_end = int(bf_end)
             bf_start = int(bf_start)
             bitfield_mask = self.bitfield_range_to_mask(bf_start, bf_end)
-        # SINGLE BIT W/ NAME
         else:
             bitfield_name = bitfield_def
             bitfield_mask = (1 << shift)
