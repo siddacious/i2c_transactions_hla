@@ -14,7 +14,47 @@ bank0 = None
 bank1 = None
 
 BITFIELD_REGEX = '^([^\[]+)\[(\d):(\d)\]$' # matches WHO_AM_I[7:0], DISABLE_ACCEL[5:3] etc.
+# AccelDLPFFreq.add_values(
 
+#         ( 1, 246.0, None),
+#         ( 2, 111.4, None),
+#         ( 3, 50.4, None),
+#         ( 4, 23.9, None),
+#         ( 5, 11.5, None),
+#         ( 6, 5.7, None),
+#         ( 7, 473, None),
+#      GUYR
+
+
+hardcoded_cvs = {
+    "GYRO_FS_SEL" : [
+        "±250 dps",
+        "±500 dps",
+        "±1000 dps",
+        "±2000 dps"
+    ],
+    "GYRO_DLPFCFG":["FREQ_196_6HZ_3DB",
+        "FREQ_151_8HZ_3DB",
+        "FREQ_119_5HZ_3DB",
+        "FREQ_51_2HZ_3DB",
+        "FREQ_23_9HZ_3DB",
+        "FREQ_11_6HZ_3DB",
+        "FREQ_5_7HZ_3DB",
+        "FREQ_361_4HZ_3DB"
+        ],
+
+    "ACCEL_FS" : ["±2 g","±4 g","±8 g","±16 g"],
+
+    "ACCEL_DLPFCFG":[
+        "FREQ_246_0HZ_3DB",
+        "FREQ_111_4HZ_3DB",
+        "FREQ_50_4HZ_3DB",
+        "FREQ_23_9HZ_3DB",
+        "FREQ_11_5HZ_3DB",
+        "FREQ_5_7HZ_3DB",
+        "FREQ_473HZ_3DB"
+    ]
+}
 def debug_print(*args, **kwargs):
     if DEBUG:
         print("\t\t\t\t\tDEBUG:", *args, **kwargs)
@@ -151,8 +191,7 @@ class RegisterDecoder:
     def bitfield_change_str(self, bitfield, unset_bitmask, set_bitmask, new_value):
         bf_name, bf_mask, bf_shift = bitfield
         change_str = None
-        #newp("'%s' =>%s"%(bf_name, format(bf_mask, "#010b")), 3)
-        if bf_mask == 0b1:
+        if bf_mask>>bf_shift == 0b1:
             if (bf_mask & unset_bitmask):
                 change_str = "\t\t%s was unset"%bf_name
             if (bf_mask & set_bitmask):
@@ -160,7 +199,11 @@ class RegisterDecoder:
         else:
             if (bf_mask & unset_bitmask) or (bf_mask & set_bitmask):
                 bf_value = (bf_mask & new_value)>>bf_shift
-                change_str = "\t\t%s was changed to %s"%(bf_name, hex(bf_value))
+                if bf_name in hardcoded_cvs:
+                    bf_value = hardcoded_cvs[bf_name][bf_value]
+                else:
+                    bf_value = hex(bf_value)
+                change_str = "\t\t%s was changed to %s"%(bf_name, bf_value)
 
         return change_str
 
