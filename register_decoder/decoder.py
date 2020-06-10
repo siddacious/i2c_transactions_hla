@@ -12,7 +12,7 @@ ROW_NUMBER_OFFSET = 2
 ROW_NUMBER_OFFSET = 2
 bank0 = None
 bank1 = None
-
+print("*"*100)
 BITFIELD_REGEX = '^([^\[]+)\[(\d):(\d)\]$' # matches WHO_AM_I[7:0], DISABLE_ACCEL[5:3] etc.
 # AccelDLPFFreq.add_values(
 
@@ -24,8 +24,19 @@ BITFIELD_REGEX = '^([^\[]+)\[(\d):(\d)\]$' # matches WHO_AM_I[7:0], DISABLE_ACCE
 #         ( 6, 5.7, None),
 #         ( 7, 473, None),
 #      GUYR
-
-
+# DEVICE_RESET was set
+# SLEEP was unset
+# ACCEL_DLPFCFG was changed to FREQ_246_0HZ_3DB
+# GYRO_FS_SEL was set
+# GYRO_DLPFCFG was changed to FREQ_196_6HZ_3DB
+# GYRO_SMPLRT_DIV was changed to 0xa
+# I2C_MST_CLK was changed to 0x7
+# I2C_MST_P_NSR was set
+# I2C_MST_EN was set
+# I2C_MST_RST was set
+# FIFO_WM_EN was changed to 0xc
+# I2C_SLV0_NACK was set
+# synched: ./csv_test.sh at Wed Jun  3 09:44:28 PDT 2020
 hardcoded_cvs = {
     "GYRO_FS_SEL" : [
         "±250 dps",
@@ -43,7 +54,7 @@ hardcoded_cvs = {
         "FREQ_361_4HZ_3DB"
         ],
 
-    "ACCEL_FS" : ["±2 g","±4 g","±8 g","±16 g"],
+    "ACCEL_FS_SEL" : ["±2 g","±4 g","±8 g","±16 g"],
 
     "ACCEL_DLPFCFG":[
         "FREQ_246_0HZ_3DB",
@@ -53,7 +64,9 @@ hardcoded_cvs = {
         "FREQ_11_5HZ_3DB",
         "FREQ_5_7HZ_3DB",
         "FREQ_473HZ_3DB"
-    ]
+    ],
+    "I2C_MST_CLK" : ["370.29 Hz", "Auto Select Best", "370.29 Hz", "432.00 Hz", "370.29 Hz", "370.29 Hz", "345.60 Hz", "345.60 Hz", "304.94 Hz", "432.00 Hz","432.00 Hz","432.00 Hz","471.27 Hz","432.00 Hz","345.60 Hz", "345.60 Hz"]
+
 }
 def debug_print(*args, **kwargs):
     if DEBUG:
@@ -187,7 +200,7 @@ class RegisterDecoder:
     def bitfield_change_str(self, bitfield, unset_bitmask, set_bitmask, new_value):
         bf_name, bf_mask, bf_shift = bitfield
         change_str = None
-        if bf_mask>>bf_shift == 0b1:
+        if bf_mask>>bf_shift == 0b1: # single bit mask ? not if masks aren't shifted
             if (bf_mask & unset_bitmask):
                 change_str = "%s was unset"%bf_name
             if (bf_mask & set_bitmask):
@@ -226,13 +239,14 @@ class RegisterDecoder:
             bitfield_name, bf_end, bf_start = match.groups()
             bf_end = int(bf_end)
             bf_start = int(bf_start)
-            bitfield_mask = self.bitfield_range_to_mask(bf_start, bf_end)
+            mask_width = self.bf_range_to_mask_width(bf_start, bf_end)
         else:
             bitfield_name = bitfield_def
-            bitfield_mask = (1 << shift)
+            mask_width = 1
+        bitfield_mask = (mask_width << shift)
         return (bitfield_name, bitfield_mask, shift)
 
-    def bitfield_range_to_mask(self, bf_start, bf_end):
+    def bf_range_to_mask_width(self, bf_start, bf_end):
         bitfield_width = (bf_end-bf_start)+1
         # (2^2)-1 => 4-1 => 3 -> 0b11
         # (2^3)-1 => 8-1 => 7 -> 0b111
@@ -263,6 +277,10 @@ class RegisterDecoder:
     def _b(self, num):
         return "0b %s %s" % (format(num >> 4, "04b"), format((num & 0b1111), "04b"))
         # return format(num, "#010b")
+
+def _b( num):
+    return "0b %s %s" % (format(num >> 4, "04b"), format((num & 0b1111), "04b"))
+    # return format(num, "#010b")
 
 if __name__ == "__main__":
     if len(argv) < 3:
