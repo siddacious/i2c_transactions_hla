@@ -1,6 +1,8 @@
 # TODO: Measure time between calls/
 import os
 import json
+from saleae.analyzers import HighLevelAnalyzer, AnalyzerFrame, StringSetting, NumberSetting, ChoicesSetting
+
 
 class Transaction:
     """A class representing a complete read or write transaction between an I2C Master and a slave device with addressable registers"""
@@ -64,8 +66,17 @@ class Transaction:
 MODE_AUTO_INCREMENT_ADDR_MSB_HIGH = 0
 MODE_AUTO_INCREMENT_DEFAULT = 1
 
-class I2CRegisterTransactions():
+class I2CRegisterTransactions(HighLevelAnalyzer):
+#    # List of settings that a user can set for this High Level Analyzer.
+#     my_string_setting = StringSetting()
+#     my_number_setting = NumberSetting(min_value=0, max_value=100)
+#     my_choices_setting = ChoicesSetting(choices=('A', 'B'))
 
+#     class MyHla(HighLevelAnalyzer):
+#     my_string_setting = StringSetting(label='Register map (JSON)')
+#     my_number_setting = NumberSetting(label='My Number', min_value=0, max_value=100)
+#     my_choices_setting = ChoicesSetting(label='My Choice', ['A', 'B'])
+# 
     def __init__(self):
         '''
         Initialize this HLA.
@@ -83,6 +94,8 @@ class I2CRegisterTransactions():
         self.register_map_file = None
         self.current_bank = 0
         self.current_map = {}
+        self.register_map_file = '/Users/bs/dev/tooling/i2c_txns/maps/register_map_v1.json'
+        self._load_register_map()
 
     def get_capabilities(self):
         '''
@@ -117,42 +130,42 @@ class I2CRegisterTransactions():
 
         self.current_map = self.register_map[0]
 
-    def set_settings(self, settings):
-        '''
-        Handle the settings values chosen by the user, and return information about how to display the results that `decode` will return.
+    # def set_settings(self, settings):
+    #     '''
+    #     Handle the settings values chosen by the user, and return information about how to display the results that `decode` will return.
 
-        This method will be called second, after `get_capbilities` and before `decode`.
-        '''
-        if 'Register map (json)' in settings and settings['Register map (json)']:
-            self.register_map_file = settings['Register map (json)']
-            print("File is '%s'"%self.register_map_file)
-        else:
-            print("No register map provided...", end="")
-            self.register_map_file = '/Users/bs/dev/logic_hlas/i2c_txns/register_map_v1.json'
-        self._load_register_map()
+    #     This method will be called second, after `get_capbilities` and before `decode`.
+    #     '''
+    #     if 'Register map (json)' in settings and settings['Register map (json)']:
+    #         self.register_map_file = settings['Register map (json)']
+    #         print("File is '%s'"%self.register_map_file)
+    #     else:
+    #         print("No register map provided...", end="")
+    #         self.register_map_file = '/Users/bs/dev/logic_hlas/i2c_txns/register_map_v1.json'
+    #     self._load_register_map()
 
-        if 'Multi-byte auto-increment mode' in settings:
-            mode_setting = settings['Multi-byte auto-increment mode']
-            if mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
-                self.mode = MODE_AUTO_INCREMENT_DEFAULT
-            elif mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
-                self.mode = MODE_AUTO_INCREMENT_DEFAULT
+    #     if 'Multi-byte auto-increment mode' in settings:
+    #         mode_setting = settings['Multi-byte auto-increment mode']
+    #         if mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
+    #             self.mode = MODE_AUTO_INCREMENT_DEFAULT
+    #         elif mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
+    #             self.mode = MODE_AUTO_INCREMENT_DEFAULT
 
-        if 'Debug Print' in settings:
-            print("debug in settings:", settings['Debug Print'])
-            self._debug = settings['Debug Print'] == 'True'
-            print("self._debug:", self._debug)
+    #     if 'Debug Print' in settings:
+    #         print("debug in settings:", settings['Debug Print'])
+    #         self._debug = settings['Debug Print'] == 'True'
+    #         print("self._debug:", self._debug)
 
-        return {
-            'result_types': {
-                'i2c_frame  ': {
-                    'format': '{{data.out_str}}'
-                },
-                'transaction': {
-                    'format': '{{data.transaction_string}}'
-                }
-            }
-        }
+    #     return {
+    #         'result_types': {
+    #             'i2c_frame  ': {
+    #                 'format': '{{data.out_str}}'
+    #             },
+    #             'transaction': {
+    #                 'format': '{{data.transaction_string}}'
+    #             }
+    #         }
+    #     }
 
     def process_transaction(self):
         txn = self.current_transaction
@@ -189,26 +202,30 @@ class I2CRegisterTransactions():
                 'transaction_string' : transaction_string
             }
         }
+        new_frame = AnalyzerFrame('transaction',
+            self.current_transaction.start_time, self.current_transaction.end_time, {
+            'input_type': self.current_frame.type
+        })
 
         return new_frame
 
     def _process_data_frame(self, frame):
-        byte = frame['data']['data'][0]
+        byte = frame.data['data'][0]
 
 
         self.current_transaction.data.append(byte)
 
     def _process_address_frame(self, frame):
-        address_frame_data = frame['data']['address'][0]
+        address_frame_data = frame.data['address'][0]
         self.current_transaction.last_address_frame = address_frame_data
 
     def _process_start_frame(self, frame):
         if self.current_transaction: # repeated start
             return
-        self.current_transaction = Transaction(frame['start_time'])
+        self.current_transaction = Transaction(frame.start_time)
 
     def _process_stop_frame(self, frame):
-        self.current_transaction.end_time = frame['end_time']
+        self.current_transaction.end_time = frame.end_time
         new_frame = self.process_transaction()
         self.current_transaction = None
 
@@ -217,7 +234,7 @@ class I2CRegisterTransactions():
     def decode(self, frame):
         self.current_frame = frame
         new_frame = None
-        frame_type = frame['type']
+        frame_type = frame.type
 
         if self._debug: print(frame_type.upper())
 
@@ -244,6 +261,10 @@ class I2CRegisterTransactions():
                         print(key, "=>", value)
 
             return new_frame
+
+        # return AnalyzerFrame('mytype', frame.start_time, frame.end_time, {
+        #     'input_type': frame.type
+        # })
 
         if self.current_transaction and self._debug:
             print(self.current_transaction)
