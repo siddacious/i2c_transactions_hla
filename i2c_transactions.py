@@ -2,7 +2,7 @@
 import os
 import json
 from saleae.analyzers import HighLevelAnalyzer, AnalyzerFrame, StringSetting, NumberSetting, ChoicesSetting
-
+# https://support.saleae.com/extensions/analyzer-frame-types
 
 class Transaction:
     """A class representing a complete read or write transaction between an I2C Master and a slave device with addressable registers"""

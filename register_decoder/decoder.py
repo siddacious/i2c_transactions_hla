@@ -6,7 +6,9 @@ import itertools
 
 from sys import argv
 
-DEBUG = False
+DEBUG = True
+VERBOSE = True
+# DEBUG = False
 VERBOSE = False
 ROW_NUMBER_OFFSET = 2
 ROW_NUMBER_OFFSET = 2
@@ -82,6 +84,13 @@ def verbose_print(*args, **kwargs):
 def verbose_debug(*args, **kwargs):
     if VERBOSE and DEBUG:
         verbose_print("DEBUG:", *args, **kwargs)
+def pretty(d, indent=0):
+    for key, value in d.items():
+        print(' ' * indent + "k:"+str(key))
+        if isinstance(value, dict):
+            pretty(value, indent+1)
+        else:
+            print(' ' * (indent+1) + "↳"+str(value))
 
 class RegisterDecoder:
 
@@ -91,6 +100,11 @@ class RegisterDecoder:
         self.current_bank = -1
 
     def decode(self, row_num, row):
+        # print("reg map length:", len(self.register_map))
+        # print("*********      REG MAP?!*************")
+        # pretty(self.register_map)
+        # print("*************************************")
+
         if len(self.register_map) is 1 and self.current_bank is -1:
             self.current_bank = 0
         adjusted_row_num = row_num + ROW_NUMBER_OFFSET
@@ -115,7 +129,7 @@ class RegisterDecoder:
         b0 = int(row["byte0"], 16)
 
         if rw == "WRITE" and (b0 != 0x7F) and (not self._reg_known(b0)):
-            verbose_print(
+            debug_print(
                 "\n\t\tBAD KEY:",
                 b0,
                 "(%s)" % self._h(b0),
@@ -151,8 +165,10 @@ class RegisterDecoder:
             bitfields = self.load_bitfields(current_register)
             self.prev_single_byte_write = b0
         else:
+            print("current bank", self.current_bank)
+            print("prev single byte write:", self.prev_single_byte_write)
             current_register = self.register_map[self.current_bank][self.prev_single_byte_write]
-            bitfields = self.load_bitfields(current_register)
+            self.register_map
             if (
                 self.prev_single_byte_write != None
             ):  # isn't this always going to be set in this case? for normal register'd i2c yes.
