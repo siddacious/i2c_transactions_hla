@@ -76,7 +76,17 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 #     my_string_setting = StringSetting(label='Register map (JSON)')
 #     my_number_setting = NumberSetting(label='My Number', min_value=0, max_value=100)
 #     my_choices_setting = ChoicesSetting(label='My Choice', ['A', 'B'])
-# 
+
+
+    result_types = {
+        'i2c_frame  ': {
+            'format': '{{data.out_str}}'
+        },
+        'transaction': {
+            'format': '{{data.transaction_string}}'
+        }
+    }
+
     def __init__(self):
         '''
         Initialize this HLA.
@@ -130,42 +140,7 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
         self.current_map = self.register_map[0]
 
-    # def set_settings(self, settings):
-    #     '''
-    #     Handle the settings values chosen by the user, and return information about how to display the results that `decode` will return.
 
-    #     This method will be called second, after `get_capbilities` and before `decode`.
-    #     '''
-    #     if 'Register map (json)' in settings and settings['Register map (json)']:
-    #         self.register_map_file = settings['Register map (json)']
-    #         print("File is '%s'"%self.register_map_file)
-    #     else:
-    #         print("No register map provided...", end="")
-    #         self.register_map_file = '/Users/bs/dev/logic_hlas/i2c_txns/register_map_v1.json'
-    #     self._load_register_map()
-
-    #     if 'Multi-byte auto-increment mode' in settings:
-    #         mode_setting = settings['Multi-byte auto-increment mode']
-    #         if mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
-    #             self.mode = MODE_AUTO_INCREMENT_DEFAULT
-    #         elif mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
-    #             self.mode = MODE_AUTO_INCREMENT_DEFAULT
-
-    #     if 'Debug Print' in settings:
-    #         print("debug in settings:", settings['Debug Print'])
-    #         self._debug = settings['Debug Print'] == 'True'
-    #         print("self._debug:", self._debug)
-
-    #     return {
-    #         'result_types': {
-    #             'i2c_frame  ': {
-    #                 'format': '{{data.out_str}}'
-    #             },
-    #             'transaction': {
-    #                 'format': '{{data.transaction_string}}'
-    #             }
-    #         }
-    #     }
 
     def process_transaction(self):
         txn = self.current_transaction
@@ -204,7 +179,7 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         }
         new_frame = AnalyzerFrame('transaction',
             self.current_transaction.start_time, self.current_transaction.end_time, {
-            'input_type': self.current_frame.type
+            'input_type': self.current_frame.type, 'transaction_string':transaction_string
         })
 
         return new_frame
@@ -267,4 +242,42 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         # })
 
         if self.current_transaction and self._debug:
+
             print(self.current_transaction)
+
+                # def set_settings(self, settings):
+    #     '''
+    #     Handle the settings values chosen by the user, and return information about how to display the results that `decode` will return.
+
+    #     This method will be called second, after `get_capbilities` and before `decode`.
+    #     '''
+    #     if 'Register map (json)' in settings and settings['Register map (json)']:
+    #         self.register_map_file = settings['Register map (json)']
+    #         print("File is '%s'"%self.register_map_file)
+    #     else:
+    #         print("No register map provided...", end="")
+    #         self.register_map_file = '/Users/bs/dev/logic_hlas/i2c_txns/register_map_v1.json'
+    #     self._load_register_map()
+
+    #     if 'Multi-byte auto-increment mode' in settings:
+    #         mode_setting = settings['Multi-byte auto-increment mode']
+    #         if mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
+    #             self.mode = MODE_AUTO_INCREMENT_DEFAULT
+    #         elif mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
+    #             self.mode = MODE_AUTO_INCREMENT_DEFAULT
+
+    #     if 'Debug Print' in settings:
+    #         print("debug in settings:", settings['Debug Print'])
+    #         self._debug = settings['Debug Print'] == 'True'
+    #         print("self._debug:", self._debug)
+
+    #     return {
+    #         'result_types': {
+    #             'i2c_frame  ': {
+    #                 'format': '{{data.out_str}}'
+    #             },
+    #             'transaction': {
+    #                 'format': '{{data.transaction_string}}'
+    #             }
+    #         }
+    #     }
