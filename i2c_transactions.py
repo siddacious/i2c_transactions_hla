@@ -157,18 +157,12 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         self.register_map = map_loader.map
 
     def process_transaction(self):
-        txn = self.current_transaction
-        # address_byte = txn.data.pop(0)
-        # if self.mode == MODE_AUTO_INCREMENT_ADDR_MSB_HIGH:
-        #     address_byte &= 0x7F # clear any MSB used for auto increment
-
-        ############ register naming #####################
-
+        print(self.current_transaction)
         transaction_string = self.decoder.decode_transaction(self.current_transaction)
 
         ###################################################
         # transaction_string = str(txn)
-        print(transaction_string)
+        print("DECODED:", transaction_string)
         new_frame = {
             'type': 'transaction',
             'start_time': self.current_transaction.start_time,

@@ -86,15 +86,8 @@ class RegisterDecoder:
                 AttributeError("you must provide a register map")
         self.prev_single_byte_write = None
         self.current_bank = 0
-        # if len(self.register_map) is 1 and self.current_bank is -1:
-        #     self.current_bank = 0
-        # print("reg map length:", len(self.register_map))
-        # print("*********      REG MAP?!*************")
-        # pretty(self.register_map)
-        # print("*************************************")
+
     def decode(self, row_num, row):
-
-
         adjusted_row_num = row_num + ROW_NUMBER_OFFSET
         b0 = None
         b1 = None
@@ -138,44 +131,45 @@ class RegisterDecoder:
         print(self.decode_bytes(rw, b0, b1))
 
     def decode_transaction(self, reg_txn):
+        # decoder should be able to use these but I think it's currently
+        # fguring out what register_address is
         # reg_txn.is_read
         # reg_txn.i2c_node_addr #sensor/outgoing address
         # reg_txn.register_address #destination of write, source of read
         # reg_txn.data # ints/non-string list
+        out_str = "CAN'T DECODE: %s"%reg_txn
+        if reg_txn.is_read:
+            rw = "READ"
+        else:
+            rw= "WRITE"
+        if len(reg_txn.data)>2:
+            return "[UNDER CONSTRUCTION: len(dat)>2]"
+        if reg_txn.is_read and len(reg_txn.data) >2:
+            return "READ %s"%reg_txn.data
 
-     
+        try:
+            out_str = self.decode_bytes(rw, *reg_txn.data)
+        except RuntimeError as e:
+            print("Error Decoding:")
+            print(type(e))
+            print(e.args)
+            print(e)
 
-
-        # if reg_txn.is_read:
-        #     rw = "READ"
-        # else:
-        #     rw= "WRITE"
-        # if len(reg_txn.data)>2:
-        #     return ""
-        # out_str = "+>%s"%reg_txn
-        # out_str = self.decode_bytes(rw, *reg_txn.data)
-        out_str = str(reg_txn)
         return out_str
 
     # TODO: Take bool, for rw
     # TODO: Return string, print from caller
+    # TODO: Take a bytearray
     def decode_bytes(self, rw, b0=None, b1=None):
-        if DEBUG >=2:
-            if not b0:
-                b0s = " "
-            else:
-                b0s = hex(b0)
-            if not b1:
-                b1s = " "
-            else:
-                b1s = hex(b1)
-            print("[%s : %s : %s]"%(rw, b0s, b1s))
-        if b1 is None:
+
+        if b1 is None: # single byte
             return self.single_byte_decode(rw, b0)
         elif rw == "WRITE":
+            if b0 not in self.register_map[self.current_bank]:
+                return "UNKNOWN REG: %s"%hex(b0)
             return self.decode_set_value(rw, b0, b1)
         else:
-            #raise RuntimeError("Multi-byte reads not supported")
+            raise RuntimeError("Multi-byte reads not supported")
             return
 
     def single_byte_decode(self, rw, b0):
@@ -209,7 +203,7 @@ class RegisterDecoder:
                 #         self._h(b0),
                 #     )
                 # )
-                
+
                 # isn't this going to do nothing because it's a local?
                 current_register['last_read_value'] = b0
                 self.prev_single_byte_write = None  # shouldn't be needed
@@ -217,6 +211,10 @@ class RegisterDecoder:
             #     raise ("UNEXPECTED READ WITHOUT PRECEDING WRITE")
 
     def decode_set_value(self, rw, reg_addr, value_byte):
+
+        print("\tbank:", self.current_bank)
+        print('reg_addr', reg_addr)
+
         current_register = self.register_map[self.current_bank][reg_addr]
         bitfields = self.load_bitfields(current_register)
 
