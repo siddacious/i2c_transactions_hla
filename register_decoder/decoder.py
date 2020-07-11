@@ -5,10 +5,10 @@ import re
 import itertools
 
 from sys import argv
-
+DEBUG2 = True
 DEBUG = True
 VERBOSE = True
-# DEBUG = False
+DEBUG = False
 VERBOSE = False
 ROW_NUMBER_OFFSET = 2
 ROW_NUMBER_OFFSET = 2
@@ -98,12 +98,11 @@ class RegisterDecoder:
         self.register_map = register_map
         self.prev_single_byte_write = None
         self.current_bank = -1
-
-    def decode(self, row_num, row):
         # print("reg map length:", len(self.register_map))
         # print("*********      REG MAP?!*************")
         # pretty(self.register_map)
         # print("*************************************")
+    def decode(self, row_num, row):
 
         if len(self.register_map) is 1 and self.current_bank is -1:
             self.current_bank = 0
@@ -150,6 +149,16 @@ class RegisterDecoder:
         self.decode_bytes(rw, b0, b1)
 
     def decode_bytes(self, rw, b0, b1):
+        if DEBUG2:
+            if not b0:
+                b0s = " "
+            else:
+                b0s = hex(b0)
+            if not b1:
+                b1s = " "
+            else:
+                b1s = hex(b1)
+            print("[%s : %s : %s]"%(rw, b0s, b1s))
         if b1 is None:
             self.single_byte_decode(rw, b0)
         elif rw == "WRITE":
@@ -165,8 +174,8 @@ class RegisterDecoder:
             bitfields = self.load_bitfields(current_register)
             self.prev_single_byte_write = b0
         else:
-            print("current bank", self.current_bank)
-            print("prev single byte write:", self.prev_single_byte_write)
+            # print("current bank", self.current_bank)
+            # print("prev single byte write:", self.prev_single_byte_write)
             current_register = self.register_map[self.current_bank][self.prev_single_byte_write]
             self.register_map
             if (
@@ -229,7 +238,8 @@ class RegisterDecoder:
                 else:
                     bf_value = hex(bf_value)
                 change_str = "%s was changed to %s"%(bf_name, bf_value)
-
+        if DEBUG2 and change_str:
+            change_str = "\t%s"%change_str
         return change_str
 
     def load_bitfields(self, current_register):
