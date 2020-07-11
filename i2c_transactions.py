@@ -1,7 +1,9 @@
-# TODO: Measure time between calls/
 import os
 import json
 from saleae.analyzers import HighLevelAnalyzer, AnalyzerFrame, StringSetting, NumberSetting, ChoicesSetting
+from register_decoder import RegisterDecoder
+import csv_loader
+# import json_loader
 # https://support.saleae.com/extensions/analyzer-frame-types
 
 class Transaction:
@@ -104,8 +106,12 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         self.register_map_file = None
         self.current_bank = 0
         self.current_map = {}
-        self.register_map_file = '/Users/bs/dev/tooling/i2c_txns/maps/register_map_v1.json'
+        # take from setting
+        self.register_map_file = '/Users/bs/dev/tooling/i2c_txns/maps/as7341_map.csv'
+
         self._load_register_map()
+        self.decoder = RegisterDecoder(register_map=self.register_map)
+
 
     def get_capabilities(self):
         '''
@@ -131,41 +137,44 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         }
 
     def _load_register_map(self):
-        if os.path.exists(self.register_map_file):
-            print("loading register map from %s"%self.register_map_file)
-            with open(self.register_map_file) as f:
-                self.register_map = json.load(f)
-        else:
+        if not os.path.exists(self.register_map_file):
             raise FileNotFoundError("no register map found at %s"%self.register_map_file)
 
-        self.current_map = self.register_map[0]
 
+        print("loading register map from %s"%self.register_map_file)
+        if self.register_map_file.endswith(".csv"):
+            from csv_loader import CSVRegisterMapLoader
+            map_loader = CSVRegisterMapLoader(self.register_map_file)
 
+        elif self.register_map_file.endswith(".json"):
+            from json_loader import JSONRegisterMapLoader
+            map_loader = JSONRegisterMapLoader(self.register_map_file)
+        else:
+            raise AttributeError("Provided register map does not have a supported extension: [json, csv]"%)
+
+        if map_loader.map is None :
+            raise AttributeError("Register MapLoader could not load a map")
+        self.register_map = map_loader.map
 
     def process_transaction(self):
         txn = self.current_transaction
         address_byte = txn.data.pop(0)
-        if self.mode == MODE_AUTO_INCREMENT_ADDR_MSB_HIGH:
-            address_byte &= 0x7F # clear any MSB used for auto increment
+        # if self.mode == MODE_AUTO_INCREMENT_ADDR_MSB_HIGH:
+        #     address_byte &= 0x7F # clear any MSB used for auto increment
 
         ############ register naming #####################
-        # TODO: update register map to use int keys
+
         address_key = str(address_byte)
         if address_key in self.current_map.keys():
             register_name = self.current_map[address_key]['name']
         else:
             # TODO: WRITE UNKNOWN DOES NOT DISPLAY CORRECTLY, READ UNKNOWN DOES
             register_name = "UNKNOWN[%s]"%hex(address_byte)
-            print("\tUNKNOWN: ", hex(address_byte))
-            print("\tUNKNOWN: frame:", str(self.current_frame))
-            print("\tUNKNOWN: transaction:", str(txn))
 
         txn.register_name = register_name
         txn.register_address = address_byte
+        # transaction_string = self.decoder.decode(self.current_transaction)
 
-        if register_name == "BANK":
-            bank_val = (txn.data[0] & 0x30)>>4
-            self.current_map = self.register_map[bank_val]
         ###################################################
         transaction_string = str(txn)
         print(transaction_string)

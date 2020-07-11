@@ -5,10 +5,7 @@ import re
 import itertools
 
 from sys import argv
-DEBUG2 = True
-DEBUG = True
-VERBOSE = True
-DEBUG = False
+DEBUG = 3
 VERBOSE = False
 ROW_NUMBER_OFFSET = 2
 ROW_NUMBER_OFFSET = 2
@@ -16,29 +13,8 @@ bank0 = None
 bank1 = None
 print("*"*100)
 BITFIELD_REGEX = '^([^\[]+)\[(\d):(\d)\]$' # matches WHO_AM_I[7:0], DISABLE_ACCEL[5:3] etc.
-# AccelDLPFFreq.add_values(
 
-#         ( 1, 246.0, None),
-#         ( 2, 111.4, None),
-#         ( 3, 50.4, None),
-#         ( 4, 23.9, None),
-#         ( 5, 11.5, None),
-#         ( 6, 5.7, None),
-#         ( 7, 473, None),
-#      GUYR
-# DEVICE_RESET was set
-# SLEEP was unset
-# ACCEL_DLPFCFG was changed to FREQ_246_0HZ_3DB
-# GYRO_FS_SEL was set
-# GYRO_DLPFCFG was changed to FREQ_196_6HZ_3DB
-# GYRO_SMPLRT_DIV was changed to 0xa
-# I2C_MST_CLK was changed to 0x7
-# I2C_MST_P_NSR was set
-# I2C_MST_EN was set
-# I2C_MST_RST was set
-# FIFO_WM_EN was changed to 0xc
-# I2C_SLV0_NACK was set
-# synched: ./csv_test.sh at Wed Jun  3 09:44:28 PDT 2020
+
 hardcoded_cvs = {
     "GYRO_FS_SEL" : [
         "±250 dps",
@@ -71,18 +47,18 @@ hardcoded_cvs = {
 
 }
 def debug_print(*args, **kwargs):
-    if DEBUG:
+    if DEBUG >=3:
         print("\t\t\t\t\tDEBUG:", *args, **kwargs)
 
 def newp(new_s, tabs=6):
     print("%s         \t%s"%("\t"*tabs, new_s))
 
 def verbose_print(*args, **kwargs):
-    if VERBOSE:
+    if DEBUG >=3:
         print("LOG:", *args, **kwargs)
 
 def verbose_debug(*args, **kwargs):
-    if VERBOSE and DEBUG:
+    if DEBUG >=3:
         verbose_print("DEBUG:", *args, **kwargs)
 def pretty(d, indent=0):
     for key, value in d.items():
@@ -99,9 +75,9 @@ class RegisterDecoder:
         self.prev_single_byte_write = None
         self.current_bank = -1
         # print("reg map length:", len(self.register_map))
-        # print("*********      REG MAP?!*************")
-        # pretty(self.register_map)
-        # print("*************************************")
+        print("*********      REG MAP?!*************")
+        pretty(self.register_map)
+        print("*************************************")
     def decode(self, row_num, row):
 
         if len(self.register_map) is 1 and self.current_bank is -1:
@@ -147,9 +123,26 @@ class RegisterDecoder:
 
         ########### Decode #################
         self.decode_bytes(rw, b0, b1)
+    def decode_transaction(self, reg_txn):
+        # reg_txn.is_read
+        # reg_txn.i2c_node_addr #sensor/outgoing address
+        # reg_txn.register_address #destination of write, source of read
+        # reg_txn.data # ints/non-string list
+        if reg_txn.is_read:
+            rw = "READ"
+        else:
+            rw= "WRITE"
+        if DEBUG >=3:
+            print("[%s"%reg_txn.i2c_node_addr)
 
+        self.decode_bytes(rw, reg_txn.data[0], reg_txn.data[1])
+
+        return "[UNDER CONSTRUCTION]"
+
+    # TODO: Take bool, for rw
+    # TODO: Return string, print from caller
     def decode_bytes(self, rw, b0, b1):
-        if DEBUG2:
+        if DEBUG >=2:
             if not b0:
                 b0s = " "
             else:
@@ -238,7 +231,7 @@ class RegisterDecoder:
                 else:
                     bf_value = hex(bf_value)
                 change_str = "%s was changed to %s"%(bf_name, bf_value)
-        if DEBUG2 and change_str:
+        if DEBUG >=2 and change_str:
             change_str = "\t%s"%change_str
         return change_str
 
@@ -314,18 +307,4 @@ if __name__ == "__main__":
     source_files = sys.argv[2:]
     map_loader = None
 
-    if source_files[0].endswith(".json"):
-        from register_decoder.map_loader.json_loader import JSONRegisterMapLoader
-        map_loader = JSONRegisterMapLoader(source_files[0])
-    elif source_files[0].endswith(".csv"):
-        from register_decoder.map_loader.csv_loader import CSVRegisterMapLoader
-        map_loader = CSVRegisterMapLoader(source_files)
-    if map_loader.map is None :
-        raise AttributeError("MAP is None")
 
-    decoder = RegisterDecoder(register_map=map_loader.map)
-
-    with open(sys.argv[1], newline="") as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row_num, row in enumerate(reader):
-            decoder.decode(row_num, row)
