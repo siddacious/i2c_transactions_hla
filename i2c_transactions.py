@@ -6,16 +6,18 @@ import csv_loader
 # import json_loader
 # https://support.saleae.com/extensions/analyzer-frame-types
 
+
 class Transaction:
     """A class representing a complete read or write transaction between an I2C Master and a slave device with addressable registers"""
     end_time: float
     is_multibyte_read: bool
     is_read: bool
     start_time: float
-    register_address: int
     register_name: str
     _last_addr_frame: int
     data: bytearray
+    i2c_node_addr: int
+    register_address: int
 
     def __init__(self, start_time):
         self.start_time = start_time
@@ -23,37 +25,34 @@ class Transaction:
         self.end_time = None
         self.register_address = None
         self.register_name = ""
-        self._last_addr_frame = None
         self.data = bytearray()
+        self._read = False
+        self._i2c_node_addr = 0xFF
 
-    @property
-    def last_address_frame(self):
-        """The last address frame sent by the I2C master to set the target slave
-        and declare if the following frames will be written or read by the master"""
-        return self._last_addr_frame
-
-    @last_address_frame.setter
-    def last_address_frame(self, frame):
-        self._last_addr_frame = frame
 
     @property
     def i2c_node_addr(self):
         """The 7-bit I2C slave address of the target device, derived from the last address frame"""
-        return (self._last_addr_frame & 0x7E)>>1
-
+        return (self._i2c_node_addr)
+    @i2c_node_addr.setter
+    def i2c_node_addr(self, value):
+        self._i2c_node_addr = value
     @property
     def is_read(self):
         """True if the transaction is a read, False if it is a write. Derived from the last
         address frame before a STOP frame as the initial address frame will always be a write"""
-        return (self._last_addr_frame & 1) > 0
+        return (self._read)
+    @is_read.setter
+    def is_read(self, value):
+        self._read = value
+
 
     def __str__(self):
         out_str = ""
-        if self.last_address_frame:
-            if self.is_read:
-                out_str +=" READ"
-            else:
-                out_str +=" WRITE"
+        if self.is_read:
+            out_str +=" READ"
+        else:
+            out_str +=" WRITE"
             # TODO: option to show slave addr
             # out_str +=" (%s)"%hex(self.i2c_node_addr)
         if self.register_name and self.register_address:
@@ -109,8 +108,9 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         # take from setting
         self.register_map_file = '/Users/bs/dev/tooling/i2c_txns/maps/as7341_map.csv'
 
-        self._load_register_map()
-        self.decoder = RegisterDecoder(register_map=self.register_map)
+        # self._load_register_map()
+        # self.decoder = RegisterDecoder(register_map=self.register_map)
+        self.decoder = RegisterDecoder()
 
 
     def get_capabilities(self):
@@ -144,39 +144,30 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         print("loading register map from %s"%self.register_map_file)
         if self.register_map_file.endswith(".csv"):
             from csv_loader import CSVRegisterMapLoader
-            map_loader = CSVRegisterMapLoader(self.register_map_file)
+            map_loader = CSVRegisterMapLoader([self.register_map_file])
 
         elif self.register_map_file.endswith(".json"):
             from json_loader import JSONRegisterMapLoader
             map_loader = JSONRegisterMapLoader(self.register_map_file)
         else:
-            raise AttributeError("Provided register map does not have a supported extension: [json, csv]"%)
+            raise AttributeError("Provided register map %s does not have a supported extension: [json, csv]"%self.register_map_file)
 
-        if map_loader.map is None :
+        if map_loader.map is None:
             raise AttributeError("Register MapLoader could not load a map")
         self.register_map = map_loader.map
 
     def process_transaction(self):
         txn = self.current_transaction
-        address_byte = txn.data.pop(0)
+        # address_byte = txn.data.pop(0)
         # if self.mode == MODE_AUTO_INCREMENT_ADDR_MSB_HIGH:
         #     address_byte &= 0x7F # clear any MSB used for auto increment
 
         ############ register naming #####################
 
-        address_key = str(address_byte)
-        if address_key in self.current_map.keys():
-            register_name = self.current_map[address_key]['name']
-        else:
-            # TODO: WRITE UNKNOWN DOES NOT DISPLAY CORRECTLY, READ UNKNOWN DOES
-            register_name = "UNKNOWN[%s]"%hex(address_byte)
-
-        txn.register_name = register_name
-        txn.register_address = address_byte
-        # transaction_string = self.decoder.decode(self.current_transaction)
+        transaction_string = self.decoder.decode_transaction(self.current_transaction)
 
         ###################################################
-        transaction_string = str(txn)
+        # transaction_string = str(txn)
         print(transaction_string)
         new_frame = {
             'type': 'transaction',
@@ -194,15 +185,18 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         return new_frame
 
     def _process_data_frame(self, frame):
-        byte = frame.data['data'][0]
+        byte = int.from_bytes(frame.data['data'], 'little')
 
 
         self.current_transaction.data.append(byte)
 
     def _process_address_frame(self, frame):
-        address_frame_data = frame.data['address'][0]
-        self.current_transaction.last_address_frame = address_frame_data
+        address= frame.data['address'] # bytes
+        read = frame.data['read'] # bool
+        ack = frame.data['ack'] # bool
 
+        self.current_transaction.is_read = read
+        self.current_transaction.i2c_node_addr = address
     def _process_start_frame(self, frame):
         if self.current_transaction: # repeated start
             return
@@ -254,39 +248,4 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
             print(self.current_transaction)
 
-                # def set_settings(self, settings):
-    #     '''
-    #     Handle the settings values chosen by the user, and return information about how to display the results that `decode` will return.
-
-    #     This method will be called second, after `get_capbilities` and before `decode`.
-    #     '''
-    #     if 'Register map (json)' in settings and settings['Register map (json)']:
-    #         self.register_map_file = settings['Register map (json)']
-    #         print("File is '%s'"%self.register_map_file)
-    #     else:
-    #         print("No register map provided...", end="")
-    #         self.register_map_file = '/Users/bs/dev/logic_hlas/i2c_txns/register_map_v1.json'
-    #     self._load_register_map()
-
-    #     if 'Multi-byte auto-increment mode' in settings:
-    #         mode_setting = settings['Multi-byte auto-increment mode']
-    #         if mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
-    #             self.mode = MODE_AUTO_INCREMENT_DEFAULT
-    #         elif mode_setting == 'MODE_AUTO_INCREMENT_DEFAULT':
-    #             self.mode = MODE_AUTO_INCREMENT_DEFAULT
-
-    #     if 'Debug Print' in settings:
-    #         print("debug in settings:", settings['Debug Print'])
-    #         self._debug = settings['Debug Print'] == 'True'
-    #         print("self._debug:", self._debug)
-
-    #     return {
-    #         'result_types': {
-    #             'i2c_frame  ': {
-    #                 'format': '{{data.out_str}}'
-    #             },
-    #             'transaction': {
-    #                 'format': '{{data.transaction_string}}'
-    #             }
-    #         }
-    #     }
+  

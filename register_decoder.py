@@ -3,9 +3,8 @@ import sys
 import csv
 import re
 import itertools
-
 from sys import argv
-DEBUG = 3
+DEBUG = 0
 VERBOSE = False
 ROW_NUMBER_OFFSET = 2
 ROW_NUMBER_OFFSET = 2
@@ -72,16 +71,30 @@ class RegisterDecoder:
 
     def __init__(self, register_map=None):
         self.register_map = register_map
+
+
+        # TODO: FIX THIS HACK
+        # if self.register_map:
+        #     import pickle
+        #     pickle.dump( self.register_map, open( "as7341_map.pypickle", "wb" ) )
+        if register_map is  None:
+            from os.path import exists
+            from pickle import load
+            if exists('/Users/bs/dev/tooling/i2c_txns/as7341_map.pypickle'):
+                self.register_map  = load( open( '/Users/bs/dev/tooling/i2c_txns/as7341_map.pypickle', "rb" ) )
+            else:
+                AttributeError("you must provide a register map")
         self.prev_single_byte_write = None
-        self.current_bank = -1
+        self.current_bank = 0
+        # if len(self.register_map) is 1 and self.current_bank is -1:
+        #     self.current_bank = 0
         # print("reg map length:", len(self.register_map))
-        print("*********      REG MAP?!*************")
-        pretty(self.register_map)
-        print("*************************************")
+        # print("*********      REG MAP?!*************")
+        # pretty(self.register_map)
+        # print("*************************************")
     def decode(self, row_num, row):
 
-        if len(self.register_map) is 1 and self.current_bank is -1:
-            self.current_bank = 0
+
         adjusted_row_num = row_num + ROW_NUMBER_OFFSET
         b0 = None
         b1 = None
@@ -122,26 +135,31 @@ class RegisterDecoder:
         verbose_print("\tRow number:", row_num, "row:", row)
 
         ########### Decode #################
-        self.decode_bytes(rw, b0, b1)
+        print(self.decode_bytes(rw, b0, b1))
+
     def decode_transaction(self, reg_txn):
         # reg_txn.is_read
         # reg_txn.i2c_node_addr #sensor/outgoing address
         # reg_txn.register_address #destination of write, source of read
         # reg_txn.data # ints/non-string list
-        if reg_txn.is_read:
-            rw = "READ"
-        else:
-            rw= "WRITE"
-        if DEBUG >=3:
-            print("[%s"%reg_txn.i2c_node_addr)
 
-        self.decode_bytes(rw, reg_txn.data[0], reg_txn.data[1])
+     
 
-        return "[UNDER CONSTRUCTION]"
+
+        # if reg_txn.is_read:
+        #     rw = "READ"
+        # else:
+        #     rw= "WRITE"
+        # if len(reg_txn.data)>2:
+        #     return ""
+        # out_str = "+>%s"%reg_txn
+        # out_str = self.decode_bytes(rw, *reg_txn.data)
+        out_str = str(reg_txn)
+        return out_str
 
     # TODO: Take bool, for rw
     # TODO: Return string, print from caller
-    def decode_bytes(self, rw, b0, b1):
+    def decode_bytes(self, rw, b0=None, b1=None):
         if DEBUG >=2:
             if not b0:
                 b0s = " "
@@ -153,9 +171,9 @@ class RegisterDecoder:
                 b1s = hex(b1)
             print("[%s : %s : %s]"%(rw, b0s, b1s))
         if b1 is None:
-            self.single_byte_decode(rw, b0)
+            return self.single_byte_decode(rw, b0)
         elif rw == "WRITE":
-            self.decode_set_value(rw, b0, b1)
+            return self.decode_set_value(rw, b0, b1)
         else:
             #raise RuntimeError("Multi-byte reads not supported")
             return
@@ -164,28 +182,39 @@ class RegisterDecoder:
 
         if rw == "WRITE":
             current_register = self.register_map[self.current_bank][b0]
-            bitfields = self.load_bitfields(current_register)
+            #bitfields = self.load_bitfields(current_register)
             self.prev_single_byte_write = b0
-        else:
+            return "setup read from %s"%current_register
+        else: #READ
             # print("current bank", self.current_bank)
             # print("prev single byte write:", self.prev_single_byte_write)
+            if self.prev_single_byte_write is None:
+                return "UNPAIRED READ"
+
             current_register = self.register_map[self.current_bank][self.prev_single_byte_write]
             self.register_map
             if (
                 self.prev_single_byte_write != None
             ):  # isn't this always going to be set in this case? for normal register'd i2c yes.
-                debug_print(
-                    "%s read as %s (%s)"
-                    % (
+
+                return "%s read as %s (%s)"%(
                         self._reg_name(self.prev_single_byte_write),
                         self._b(b0),
-                        self._h(b0),
-                    )
-                )
+                        self._h(b0))
+                # debug_print(
+                #     "%s read as %s (%s)"
+                #     % (
+                #         self._reg_name(self.prev_single_byte_write),
+                #         self._b(b0),
+                #         self._h(b0),
+                #     )
+                # )
+                
+                # isn't this going to do nothing because it's a local?
                 current_register['last_read_value'] = b0
                 self.prev_single_byte_write = None  # shouldn't be needed
-            else:
-                raise ("UNEXPECTED READ WITHOUT PRECEDING WRITE")
+            # else:
+            #     raise ("UNEXPECTED READ WITHOUT PRECEDING WRITE")
 
     def decode_set_value(self, rw, reg_addr, value_byte):
         current_register = self.register_map[self.current_bank][reg_addr]
@@ -200,20 +229,21 @@ class RegisterDecoder:
         debug_print("SET %s to %s (%s)" % (self._reg_name(reg_addr),  self._b(value_byte), self._h(value_byte)))
         old_value = current_register['last_read_value']
 
-        self.decode_by_bitfield(current_register, value_byte)
+        return self.decode_by_bitfield(current_register, value_byte)
 
     def decode_by_bitfield(self, current_register, new_value):
         old_value = current_register['last_read_value']
         bitfields = self.load_bitfields(current_register)
 
-        self.print_bitfield_changes(old_value, new_value, bitfields)
+        return self.bitfield_changes_str(old_value, new_value, bitfields)
 
-    def print_bitfield_changes(self, old_value, new_value, bitfields):
+    def bitfield_changes_str(self, old_value, new_value, bitfields):
         unset_bitmask, set_bitmask = self.bitwise_diff(old_value, new_value)
         for bitfield in bitfields:
             bf_change_str = self.bitfield_change_str(bitfield, unset_bitmask, set_bitmask, new_value)
             if bf_change_str:
-                print(bf_change_str)
+                return bf_change_str
+            return ""
 
     def bitfield_change_str(self, bitfield, unset_bitmask, set_bitmask, new_value):
         bf_name, bf_mask, bf_shift = bitfield
@@ -307,4 +337,19 @@ if __name__ == "__main__":
     source_files = sys.argv[2:]
     map_loader = None
 
+    if source_files[0].endswith(".json"):
+        from json_loader import JSONRegisterMapLoader
+        map_loader = JSONRegisterMapLoader(source_files[0])
+    elif source_files[0].endswith(".csv"):
+        from csv_loader import CSVRegisterMapLoader
+        map_loader = CSVRegisterMapLoader(source_files)
+    if map_loader.map is None :
+        raise AttributeError("MAP is None")
+
+    decoder = RegisterDecoder(register_map=map_loader.map)
+
+    with open(sys.argv[1], newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row_num, row in enumerate(reader):
+            decoder.decode(row_num, row)
 

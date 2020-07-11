@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
-python register_decoder/decoder.py captures/as7341_test.csv maps/as7341_map.csv
+python register_decoder.py captures/as7341_test.csv maps/as7341_map.csv
 
