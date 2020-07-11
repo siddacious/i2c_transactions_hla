@@ -178,7 +178,7 @@ class RegisterDecoder:
             current_register = self.register_map[self.current_bank][b0]
             #bitfields = self.load_bitfields(current_register)
             self.prev_single_byte_write = b0
-            return "setup read from %s"%current_register
+            return "setup read from %s"%current_register['name']
         else: #READ
             # print("current bank", self.current_bank)
             # print("prev single byte write:", self.prev_single_byte_write)

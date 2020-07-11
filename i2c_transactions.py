@@ -178,25 +178,30 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
         return new_frame
 
-    def _process_data_frame(self, frame):
-        byte = int.from_bytes(frame.data['data'], 'little')
-
-
-        self.current_transaction.data.append(byte)
+    def _process_start_frame(self, frame):
+        if self.current_transaction: # repeated start
+            print("Repeated start, skipping")
+            return
+        print("Start")
+        self.current_transaction = Transaction(frame.start_time)
 
     def _process_address_frame(self, frame):
         address= frame.data['address'] # bytes
         read = frame.data['read'] # bool
         ack = frame.data['ack'] # bool
+        print("Address")
 
         self.current_transaction.is_read = read
         self.current_transaction.i2c_node_addr = address
-    def _process_start_frame(self, frame):
-        if self.current_transaction: # repeated start
-            return
-        self.current_transaction = Transaction(frame.start_time)
+
+    def _process_data_frame(self, frame):
+        print("Data")
+        byte = int.from_bytes(frame.data['data'], 'little')
+
+        self.current_transaction.data.append(byte)
 
     def _process_stop_frame(self, frame):
+        print("Stop")
         self.current_transaction.end_time = frame.end_time
         new_frame = self.process_transaction()
         self.current_transaction = None
@@ -213,7 +218,8 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         if frame_type == 'start': # begin new transaction or repeated start
             self._process_start_frame(frame)
         if self.current_transaction is None:
-            if self._debug: print("EXITing `decode` due to missing transaction for non-start frame")
+            print("the first stop will trigger this?")
+            print("EXITing `decode` due to missing transaction for non-start frame")
             return
 
         if frame_type == 'address': # read or write + I2C slave addr
@@ -233,6 +239,8 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
                         print(key, "=>", value)
 
             return new_frame
+        else:
+            print("new frame is None")
 
         # return AnalyzerFrame('mytype', frame.start_time, frame.end_time, {
         #     'input_type': frame.type
