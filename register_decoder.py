@@ -67,11 +67,13 @@ def pretty(d, indent=0):
         else:
             print(' ' * (indent+1) + "↳"+str(value))
 
+# TODO: option to print/report unchanged bitfields
+# TODO: multi-byte register handling
 class RegisterDecoder:
 
     def __init__(self, register_map=None):
         self.register_map = register_map
-
+        self.register_width = 1
 
         # TODO: FIX THIS HACK
         # if self.register_map:
@@ -131,35 +133,97 @@ class RegisterDecoder:
         print(self.decode_bytes(rw, b0, b1))
 
     def decode_transaction(self, reg_txn):
-        # decoder should be able to use these but I think it's currently
-        # fguring out what register_address is
-        # reg_txn.is_read
-        # reg_txn.i2c_node_addr #sensor/outgoing address
-        # reg_txn.register_address #destination of write, source of read
-        # reg_txn.data # ints/non-string list
-        out_str = "CAN'T DECODE: %s"%reg_txn
-        if reg_txn.is_read:
-            rw = "READ"
-        else:
-            rw= "WRITE"
-        if len(reg_txn.data)>2:
-            return "[UNDER CONSTRUCTION: len(dat)>2]"
-        if reg_txn.is_read and len(reg_txn.data) >2:
-            return "READ %s"%reg_txn.data
-
+        # OK! Here we should know READ/WRITE, Register, and Data
+        # all we need is
+        # - register name
+        # - prev register value if any
+        reg_txn_string = str(reg_txn)+" fupa"
+        print(reg_txn)
         try:
-            out_str = self.decode_bytes(rw, *reg_txn.data)
-        except RuntimeError as e:
-            print("Error Decoding:")
-            print(type(e))
-            print(e.args)
-            print(e)
+            reg_txn_string = self.process_register_transaction(reg_txn.register_address, reg_txn.data, reg_txn.write)
+        except Exception as inst:
+            print("EXCEPTION")
+            print(type(inst))    # the exception instance
+            print(inst.args)     # arguments stored in .args
+            print(inst)
+            import traceback
+            track = traceback.format_exc()
+            print(track)
 
-        return out_str
+        return reg_txn_string
 
+    def default_txn_summary(self, register_address, byte, is_write):
+        txn_string = "\t<default>"
+        if is_write:
+            txn_string += "WRITE to "
+        else:
+            txn_string += "READ from "
+        reg_addr_str = self._h(register_address)
+        data_str = self._h(byte)
+        txn_string += "%s [%s]"%(reg_addr_str, data_str)
+        # return txn_string
+        return ""
+
+
+        # read
+            # data register readings
+                # single = single register
+                # multi
+                    # multi-byte data
+                    # multiple registers
+            # current value of config register to update
+                # single -bits & bitfields
+                # multi - thresholds, etc.
+            # reset/read bit
+        # write
+            # single
+            # changed config register
+                # reset/auto changing bit within config register
+                # bitfield CV
+            # multi
+                # multi-byte thresholds
+                # wierd registers
+        # result of above:
+            # output format will primarily be detmined by the format
+            # of the register ie: bitfields or not
+
+            # multi-byte txns may want to look ahead/behind:
+            # if current is single bitfield/byte and
+            # neighbor is the same name, join
+            # if diff, report current with new name
+
+            # if self._is_bank_change(register):
+            #     if is_write:
+            #     self._update_bank(register, data)
+            #     def _update_bank(self, register, data):
+            #         reg_addr == 0x7F:
+            #         self.current_bank = value_byte >> 4
+            #     return
+    # TODO: Blank txns
     # TODO: Take bool, for rw
-    # TODO: Return string, print from caller
     # TODO: Take a bytearray
+    def process_register_transaction(self, register_address, data, is_write):
+        """Update register state cache and return the transaction summary for the current register state"""
+
+        txn_string = ""
+        for offset, byte in enumerate(data):
+            # single byte will never have offset >0 so....stuff
+            current_address = register_address+(offset*self.register_width)
+            txn_string += self.process_single_byte(current_address, byte, is_write)
+
+        return txn_string
+
+    def process_single_byte(self, register_address, byte, is_write):
+        """Process a single-byte transaction, incoming or outgoing"""
+        if not self._reg_known(register_address):
+            return self.default_txn_summary(register_address, byte, is_write)
+
+        register = self.register_map[self.current_bank][register_address]
+        bitfields = self.load_bitfields(register)
+        old_value = register['last_read_value']
+
+        return self.bitfield_changes_str(old_value, byte, bitfields)
+
     def decode_bytes(self, rw, b0=None, b1=None):
 
         if b1 is None: # single byte
@@ -180,40 +244,17 @@ class RegisterDecoder:
             self.prev_single_byte_write = b0
             return "setup read from %s"%current_register['name']
         else: #READ
-            # print("current bank", self.current_bank)
-            # print("prev single byte write:", self.prev_single_byte_write)
-            if self.prev_single_byte_write is None:
-                return "UNPAIRED READ"
-
-            current_register = self.register_map[self.current_bank][self.prev_single_byte_write]
-            self.register_map
-            if (
-                self.prev_single_byte_write != None
-            ):  # isn't this always going to be set in this case? for normal register'd i2c yes.
+            if (self.prev_single_byte_write != None):
 
                 return "%s read as %s (%s)"%(
                         self._reg_name(self.prev_single_byte_write),
                         self._b(b0),
                         self._h(b0))
-                # debug_print(
-                #     "%s read as %s (%s)"
-                #     % (
-                #         self._reg_name(self.prev_single_byte_write),
-                #         self._b(b0),
-                #         self._h(b0),
-                #     )
-                # )
 
                 # isn't this going to do nothing because it's a local?
-                current_register['last_read_value'] = b0
                 self.prev_single_byte_write = None  # shouldn't be needed
-            # else:
-            #     raise ("UNEXPECTED READ WITHOUT PRECEDING WRITE")
 
     def decode_set_value(self, rw, reg_addr, value_byte):
-
-        print("\tbank:", self.current_bank)
-        print('reg_addr', reg_addr)
 
         current_register = self.register_map[self.current_bank][reg_addr]
         bitfields = self.load_bitfields(current_register)
@@ -223,6 +264,7 @@ class RegisterDecoder:
         if reg_addr == 0x7F:
             self.current_bank = value_byte >> 4
             return
+
         # ****IDENTIFIED WRITE TO REG W/ NEW VALUE ***
         debug_print("SET %s to %s (%s)" % (self._reg_name(reg_addr),  self._b(value_byte), self._h(value_byte)))
         old_value = current_register['last_read_value']
@@ -230,6 +272,7 @@ class RegisterDecoder:
         return self.decode_by_bitfield(current_register, value_byte)
 
     def decode_by_bitfield(self, current_register, new_value):
+        # old value could be last written value
         old_value = current_register['last_read_value']
         bitfields = self.load_bitfields(current_register)
 
@@ -237,11 +280,15 @@ class RegisterDecoder:
 
     def bitfield_changes_str(self, old_value, new_value, bitfields):
         unset_bitmask, set_bitmask = self.bitwise_diff(old_value, new_value)
+        changes_str = ""
         for bitfield in bitfields:
+            # this will only process one bf
             bf_change_str = self.bitfield_change_str(bitfield, unset_bitmask, set_bitmask, new_value)
             if bf_change_str:
-                return bf_change_str
-            return ""
+                changes_str += bf_change_str+"\n"
+            else:
+                changes_str += "\tno changes to bitfield: %s %s\n"%(bitfield[0], self._b(bitfield[1]))
+        return changes_str
 
     def bitfield_change_str(self, bitfield, unset_bitmask, set_bitmask, new_value):
         bf_name, bf_mask, bf_shift = bitfield
@@ -263,6 +310,7 @@ class RegisterDecoder:
             change_str = "\t%s"%change_str
         return change_str
 
+    # TODO: make a bf object or namedtuple
     def load_bitfields(self, current_register):
         if 'bitfields' not in current_register:
             bitfields = []
@@ -278,7 +326,7 @@ class RegisterDecoder:
                 prev_bitfield_name = bitfield_name
             current_register['bitfields'] = bitfields
         return current_register['bitfields']
-        bitfields
+
 
     def bitfield_def_to_bitfield(self, bitfield_def, shift):
         match = re.fullmatch(BITFIELD_REGEX, bitfield_def)
@@ -313,13 +361,14 @@ class RegisterDecoder:
 #############################################################
 
     def _reg_known(self, b0):
+        # return b0 in self.register_map[self.current_bank]
         return b0 in self.register_map[self.current_bank].keys()
 
     def _reg_name(self, b0):
         return self.register_map[self.current_bank][b0]["name"]
 
     def _h(self, num):
-        return "0x%s" % format(num, "02X")
+        return "0x{:02X}".format(num)
 
     def _b(self, num):
         return "0b %s %s" % (format(num >> 4, "04b"), format((num & 0b1111), "04b"))

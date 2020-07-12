@@ -10,75 +10,48 @@ import csv_loader
 class Transaction:
     """A class representing a complete read or write transaction between an I2C Master and a slave device with addressable registers"""
     end_time: float
-    is_multibyte_read: bool
-    is_read: bool
+    #is_multibyte_read: bool
+    is_write: bool
     start_time: float
-    register_name: str
     _last_addr_frame: int
     data: bytearray
-    i2c_node_addr: int
     register_address: int
 
     def __init__(self, start_time):
         self.start_time = start_time
-        self.is_multibyte_read = False
         self.end_time = None
         self.register_address = None
-        self.register_name = ""
         self.data = bytearray()
-        self._read = False
-        self._i2c_node_addr = 0xFF
+        self.write = True 
 
-
-    @property
-    def i2c_node_addr(self):
-        """The 7-bit I2C slave address of the target device, derived from the last address frame"""
-        return (self._i2c_node_addr)
-    @i2c_node_addr.setter
-    def i2c_node_addr(self, value):
-        self._i2c_node_addr = value
-    @property
-    def is_read(self):
-        """True if the transaction is a read, False if it is a write. Derived from the last
-        address frame before a STOP frame as the initial address frame will always be a write"""
-        return (self._read)
-    @is_read.setter
-    def is_read(self, value):
-        self._read = value
-
+        # we would know this if prev start was a read and len(data) >1
+        # this means it is likely reading from a data register, right? Unless registers are muilti-byte (config). This would matter if reads were auto incrementing and we
+        # were reading multiple data registers simultaneously
+        #self.is_multibyte_read = False
 
     def __str__(self):
         out_str = ""
-        if self.is_read:
-            out_str +=" READ"
+        if self.write:
+            out_str +="WRITE"
         else:
-            out_str +=" WRITE"
-            # TODO: option to show slave addr
-            # out_str +=" (%s)"%hex(self.i2c_node_addr)
-        if self.register_name and self.register_address:
-            out_str += " %s"%self.register_name
-            out_str += " (%s)"%hex(self.register_address)
+            out_str +="READ"
+        if self.register_address:
+            out_str +=" RegAddr: 0x{:02X}".format(self.register_address)
         if len(self.data) > 0:
-            byte_list = [hex(i) for i in self.data]
+            byte_list = ["0x{:02X}".format(i) for i in self.data]
             byte_list_str = ", ".join(byte_list)
             out_str +=" Bytes: [%s]"%(byte_list_str)
         return out_str
 
-MODE_AUTO_INCREMENT_ADDR_MSB_HIGH = 0
-MODE_AUTO_INCREMENT_DEFAULT = 1
-
 class I2CRegisterTransactions(HighLevelAnalyzer):
+    # json_register_map_path = StringSetting(label='Register map (JSON)')
+    # csv_register_map_path = StringSetting(label='Register map (CSV)')
 #    # List of settings that a user can set for this High Level Analyzer.
 #     my_string_setting = StringSetting()
 #     my_number_setting = NumberSetting(min_value=0, max_value=100)
 #     my_choices_setting = ChoicesSetting(choices=('A', 'B'))
 
-#     class MyHla(HighLevelAnalyzer):
-#     my_string_setting = StringSetting(label='Register map (JSON)')
-#     my_number_setting = NumberSetting(label='My Number', min_value=0, max_value=100)
-#     my_choices_setting = ChoicesSetting(label='My Choice', ['A', 'B'])
-
-
+    # TODO: consider other frame types
     result_types = {
         'i2c_frame  ': {
             'format': '{{data.out_str}}'
@@ -99,12 +72,10 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         self.current_transaction = None
         self._debug = False
 
-        self.mode = MODE_AUTO_INCREMENT_DEFAULT
-
         self.register_map = None
         self.register_map_file = None
-        self.current_bank = 0
-        self.current_map = {}
+
+        self.address_is_write = False
         # take from setting
         self.register_map_file = '/Users/bs/dev/tooling/i2c_txns/maps/as7341_map.csv'
 
@@ -112,36 +83,11 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         # self.decoder = RegisterDecoder(register_map=self.register_map)
         self.decoder = RegisterDecoder()
 
-
-    def get_capabilities(self):
-        '''
-        Return the settings that a user can set for this High Level Analyzer. The settings that a user selects will later be passed into `set_settings`.
-
-        This method will be called first, before `set_settings` and `decode`
-        '''
-
-        return {
-            'settings': {
-                'Register map (json)': {
-                    'type': 'string',
-                },
-                'Multi-byte auto-increment mode': {
-                    'type': 'choices',
-                    'choices': ('MODE_AUTO_INCREMENT_DEFAULT', 'MODE_AUTO_INCREMENT_ADDR_MSB_HIGH')
-                },
-                'Debug Print': {
-                    'type': 'choices',
-                    'choices': ('False', 'True')
-                }
-            }
-        }
-
     def _load_register_map(self):
         if not os.path.exists(self.register_map_file):
             raise FileNotFoundError("no register map found at %s"%self.register_map_file)
 
 
-        print("loading register map from %s"%self.register_map_file)
         if self.register_map_file.endswith(".csv"):
             from csv_loader import CSVRegisterMapLoader
             map_loader = CSVRegisterMapLoader([self.register_map_file])
@@ -157,12 +103,15 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         self.register_map = map_loader.map
 
     def process_transaction(self):
-        print(self.current_transaction)
+        # This doesn't need to be in here?
+        self.current_transaction.register_address = self.current_transaction.data.pop(0)
+        # we can also set the type here
         transaction_string = self.decoder.decode_transaction(self.current_transaction)
 
-        ###################################################
         # transaction_string = str(txn)
-        print("DECODED:", transaction_string)
+        if len(transaction_string) > 0:
+            print("DECODED:")
+            print(transaction_string)
         new_frame = {
             'type': 'transaction',
             'start_time': self.current_transaction.start_time,
@@ -178,35 +127,41 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
         return new_frame
 
-    def _process_start_frame(self, frame):
-        if self.current_transaction: # repeated start
-            print("Repeated start, skipping")
-            return
-        print("Start")
-        self.current_transaction = Transaction(frame.start_time)
-
     def _process_address_frame(self, frame):
-        address= frame.data['address'] # bytes
-        read = frame.data['read'] # bool
-        ack = frame.data['ack'] # bool
-        print("Address")
-
-        self.current_transaction.is_read = read
-        self.current_transaction.i2c_node_addr = address
+        self.address_is_write = not frame.data['read']
 
     def _process_data_frame(self, frame):
-        print("Data")
         byte = int.from_bytes(frame.data['data'], 'little')
 
         self.current_transaction.data.append(byte)
 
     def _process_stop_frame(self, frame):
-        print("Stop")
-        self.current_transaction.end_time = frame.end_time
-        new_frame = self.process_transaction()
-        self.current_transaction = None
+        # we don't want to end on the stop after a single byte write
+        # which is used to set up a read.
+        # we _do_ want to save that data as the register address that is being read from
+        # so! if the current transaction's data is len(1) and the previous address frame
+        # was for a write, pop the byte off the bytes collection and use it to set
+        # the current transaction's register address
 
-        return new_frame
+        # otherwise, we are ending a
+        # * multi-byte write (reg addr+ values)
+        #   - in this case, the register address is the first byte of the data
+        # * single or multi-byte read ( read data)
+        #   - reg address was previous set by the write used to set the read up
+        # in either case the transaction frame should be ended and returned.
+        # REVISED!
+        # in either case (read or write), all the data frames are used and the first
+        # will always be the register address!
+        # This means the only difference is that reads transactions do not process the first write, but they still append their data
+
+        if self.address_is_write and len(self.current_transaction.data) == 1:
+            # do nothing?
+            return
+        # setting the end time will trigger processing the txn
+        self.current_transaction.end_time = frame.end_time
+
+
+        return
 
     def decode(self, frame):
         self.current_frame = frame
@@ -216,38 +171,32 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         if self._debug: print(frame_type.upper())
 
         if frame_type == 'start': # begin new transaction or repeated start
-            self._process_start_frame(frame)
+            if self.current_transaction is None:
+                self.current_transaction = Transaction(start_time=frame.start_time)
         if self.current_transaction is None:
-            print("the first stop will trigger this?")
-            print("EXITing `decode` due to missing transaction for non-start frame")
             return
 
         if frame_type == 'address': # read or write + I2C slave addr
             self._process_address_frame(frame)
-        elif frame_type == 'data': # register address and data
+        if frame_type == 'data': # register address and data
             self._process_data_frame(frame)
 
-        elif frame_type == 'stop': # transaction end, ready to process
-            new_frame = self._process_stop_frame(frame)
+        if frame_type == 'stop': # transaction end, ready to process
+            self._process_stop_frame(frame)
+
+        if self.current_transaction.end_time:
+
+            # in the rack-like model we would just pass the txn and other rack item would process it
+            transaction_frame = self.process_transaction()
+            # expecting start to create a new txn?
+            # should be created after start frame is processed
+            # which will set...??? frame start 
+            self.current_transaction = None
+            return transaction_frame
 
         self.prev_frame = frame
 
-        if new_frame:
-            if self._debug:
-                print("\nNEW_FRAME:")
-                for key, value in new_frame.items():
-                        print(key, "=>", value)
-
-            return new_frame
-        else:
-            print("new frame is None")
-
-        # return AnalyzerFrame('mytype', frame.start_time, frame.end_time, {
-        #     'input_type': frame.type
-        # })
 
         if self.current_transaction and self._debug:
-
             print(self.current_transaction)
 
-  
