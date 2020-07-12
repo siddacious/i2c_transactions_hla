@@ -105,13 +105,13 @@ class RegisterDecoder:
             debug_print("SKIPPING:", "\tRow number:", row_num, "row:", row)
             return
 
-        rw = row["rw"]
+        is_write = row["rw"] == "WRITE"
 
         # TODO: Add support for an arbitrary number of bytes
         # check for a first byte
         b0 = int(row["byte0"], 16)
 
-        if rw == "WRITE" and (b0 != 0x7F) and (not self._reg_known(b0)):
+        if is_write == "WRITE" and (b0 != 0x7F) and (not self._reg_known(b0)):
             debug_print(
                 "\n\t\tBAD KEY:",
                 b0,
@@ -119,7 +119,7 @@ class RegisterDecoder:
                 "self.current_bank:",
                 self.current_bank,
                 "RW:",
-                rw,
+                is_write,
                 "Row number:",
                 adjusted_row_num,
             )
@@ -130,7 +130,7 @@ class RegisterDecoder:
         verbose_print("\tRow number:", row_num, "row:", row)
 
         ########### Decode #################
-        print(self.decode_bytes(rw, b0, b1))
+        print(self.decode_bytes(is_write, b0, b1))
 
     def decode_transaction(self, reg_txn):
         # OK! Here we should know READ/WRITE, Register, and Data
@@ -200,8 +200,6 @@ class RegisterDecoder:
             #         self.current_bank = value_byte >> 4
             #     return
     # TODO: Blank txns
-    # TODO: Take bool, for rw
-    # TODO: Take a bytearray
     def process_register_transaction(self, register_address, data, is_write):
         """Update register state cache and return the transaction summary for the current register state"""
 
@@ -224,21 +222,21 @@ class RegisterDecoder:
 
         return self.bitfield_changes_str(old_value, byte, bitfields)
 
-    def decode_bytes(self, rw, b0=None, b1=None):
+    def decode_bytes(self, is_write, b0=None, b1=None):
 
         if b1 is None: # single byte
-            return self.single_byte_decode(rw, b0)
-        elif rw == "WRITE":
+            return self.single_byte_decode(is_write, b0)
+        elif is_write:
             if b0 not in self.register_map[self.current_bank]:
                 return "UNKNOWN REG: %s"%hex(b0)
-            return self.decode_set_value(rw, b0, b1)
+            return self.decode_set_value(is_write, b0, b1)
         else:
             raise RuntimeError("Multi-byte reads not supported")
             return
 
-    def single_byte_decode(self, rw, b0):
+    def single_byte_decode(self, is_write, b0):
 
-        if rw == "WRITE":
+        if is_write:
             current_register = self.register_map[self.current_bank][b0]
             #bitfields = self.load_bitfields(current_register)
             self.prev_single_byte_write = b0
@@ -254,7 +252,7 @@ class RegisterDecoder:
                 # isn't this going to do nothing because it's a local?
                 self.prev_single_byte_write = None  # shouldn't be needed
 
-    def decode_set_value(self, rw, reg_addr, value_byte):
+    def decode_set_value(self, is_write, reg_addr, value_byte):
 
         current_register = self.register_map[self.current_bank][reg_addr]
         bitfields = self.load_bitfields(current_register)
@@ -267,11 +265,10 @@ class RegisterDecoder:
 
         # ****IDENTIFIED WRITE TO REG W/ NEW VALUE ***
         debug_print("SET %s to %s (%s)" % (self._reg_name(reg_addr),  self._b(value_byte), self._h(value_byte)))
-        old_value = current_register['last_read_value']
 
-        return self.decode_by_bitfield(current_register, value_byte)
+        return self.decode_by_bitfield(current_register, value_byte, is_write)
 
-    def decode_by_bitfield(self, current_register, new_value):
+    def decode_by_bitfield(self, current_register, new_value, is_write):
         # old value could be last written value
         old_value = current_register['last_read_value']
         bitfields = self.load_bitfields(current_register)
@@ -327,7 +324,6 @@ class RegisterDecoder:
             current_register['bitfields'] = bitfields
         return current_register['bitfields']
 
-
     def bitfield_def_to_bitfield(self, bitfield_def, shift):
         match = re.fullmatch(BITFIELD_REGEX, bitfield_def)
         if match: #
@@ -353,6 +349,7 @@ class RegisterDecoder:
     # a_minus_b = a & ~b
     def bitwise_diff(self, old_value, new_value):
         if old_value is None:
+            print("old value defaulting to 0")
             old_value = 0
         set_bitmask =  (new_value & (~old_value))
         unset_bitmask = (old_value & (~new_value))
