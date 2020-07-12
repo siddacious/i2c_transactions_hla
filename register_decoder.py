@@ -217,10 +217,9 @@ class RegisterDecoder:
             return self.default_txn_summary(register_address, byte, is_write)
 
         register = self.register_map[self.current_bank][register_address]
-        bitfields = self.load_bitfields(register)
-        old_value = register['last_read_value']
+        return self.decode_by_bitfield(register, byte, is_write)
 
-        return self.bitfield_changes_str(old_value, byte, bitfields)
+        #return self.bitfield_changes_str(old_value, byte, bitfields)
 
     def decode_bytes(self, is_write, b0=None, b1=None):
 
