@@ -45,7 +45,7 @@ class Transaction:
 
 class I2CRegisterTransactions(HighLevelAnalyzer):
     # json_register_map_path = StringSetting(label='Register map (JSON)')
-    # csv_register_map_path = StringSetting(label='Register map (CSV)')
+    csv_register_map_path = StringSetting(label='Register map (CSV)')
 #    # List of settings that a user can set for this High Level Analyzer.
 #     my_string_setting = StringSetting()
 #     my_number_setting = NumberSetting(min_value=0, max_value=100)
@@ -67,40 +67,40 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
         If you have any initialization to do before any methods are called, you can do it here.
         '''
-        self.prev_frame = None
         self.current_frame = None
         self.current_transaction = None
-        self._debug = False
-
-        self.register_map = None
-        self.register_map_file = None
-
         self.address_is_write = False
-        # take from setting
-        self.register_map_file = '/Users/bs/dev/tooling/i2c_txns/maps/as7341_map.csv'
-
-        # self._load_register_map()
+        #self.register_map = None
         # self.decoder = RegisterDecoder(register_map=self.register_map)
         self.decoder = RegisterDecoder()
 
+        self.map_loader = None
+        self._load_register_map()
+        print("map_loader:", self.map_loader)
+        print("type(map_loader.map)", self.map_loader.map)
+        # apolgies to demeter
+        print("map keys:", self.map_loader.map.keys())
+
     def _load_register_map(self):
-        if not os.path.exists(self.register_map_file):
-            raise FileNotFoundError("no register map found at %s"%self.register_map_file)
+        print("CSV path setting:", self.csv_register_map_path, type(self.csv_register_map_path))
+        if self.csv_register_map_path:
+            if not os.path.exists(self.csv_register_map_path):
+                raise FileNotFoundError("no file found at %s"%self.csv_register_map_path)
 
-
-        if self.register_map_file.endswith(".csv"):
             from csv_loader import CSVRegisterMapLoader
-            map_loader = CSVRegisterMapLoader([self.register_map_file])
+            self.map_loader = CSVRegisterMapLoader([self.csv_register_map_path])
 
-        elif self.register_map_file.endswith(".json"):
-            from json_loader import JSONRegisterMapLoader
-            map_loader = JSONRegisterMapLoader(self.register_map_file)
-        else:
-            raise AttributeError("Provided register map %s does not have a supported extension: [json, csv]"%self.register_map_file)
 
-        if map_loader.map is None:
-            raise AttributeError("Register MapLoader could not load a map")
-        self.register_map = map_loader.map
+
+
+    def _load_register_map(self):
+        print("CSV path setting:", self.csv_register_map_path, type(self.csv_register_map_path))
+        if self.csv_register_map_path:
+            if not os.path.exists(self.csv_register_map_path):
+                raise FileNotFoundError("no file found at %s"%self.csv_register_map_path)
+
+            from csv_loader import CSVRegisterMapLoader
+            self.map_loader = CSVRegisterMapLoader([self.csv_register_map_path])
 
     def process_transaction(self):
         # This doesn't need to be in here?
@@ -193,9 +193,6 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
             # which will set...??? frame start 
             self.current_transaction = None
             return transaction_frame
-
-        self.prev_frame = frame
-
 
         if self.current_transaction and self._debug:
             print(self.current_transaction)

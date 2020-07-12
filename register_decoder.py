@@ -13,6 +13,7 @@ bank1 = None
 print("*"*100)
 BITFIELD_REGEX = '^([^\[]+)\[(\d):(\d)\]$' # matches WHO_AM_I[7:0], DISABLE_ACCEL[5:3] etc.
 
+#self.register_map_file = '/Users/bs/dev/tooling/i2c_txns/maps/as7341_map.csv'
 
 hardcoded_cvs = {
     "GYRO_FS_SEL" : [
@@ -137,8 +138,9 @@ class RegisterDecoder:
         # all we need is
         # - register name
         # - prev register value if any
-        reg_txn_string = str(reg_txn)+" fupa"
-        print(reg_txn)
+        # reg_txn_string = str(reg_txn)+" fupa"
+        # print(reg_txn)
+        reg_txn_string = ""
         try:
             reg_txn_string = self.process_register_transaction(reg_txn.register_address, reg_txn.data, reg_txn.write)
         except Exception as inst:
@@ -213,13 +215,8 @@ class RegisterDecoder:
 
     def process_single_byte(self, register_address, byte, is_write):
         """Process a single-byte transaction, incoming or outgoing"""
-        if not self._reg_known(register_address):
-            return self.default_txn_summary(register_address, byte, is_write)
 
-        register = self.register_map[self.current_bank][register_address]
-        return self.decode_by_bitfield(register, byte, is_write)
-
-        #return self.bitfield_changes_str(old_value, byte, bitfields)
+        return self.decode_by_bitfield(register_address, byte, is_write)
 
     def decode_bytes(self, is_write, b0=None, b1=None):
 
@@ -251,28 +248,52 @@ class RegisterDecoder:
                 # isn't this going to do nothing because it's a local?
                 self.prev_single_byte_write = None  # shouldn't be needed
 
+    def is_set_bank_reg(self, reg_addr):
+        # TODO: this should ask the register map
+        if reg_addr == 0x7F:
+            return true
+        return False
+    def set_bank(self, reg_addr, value_byte):
+        # TODO: this should set a register state object
+        self.current_bank = value_byte >> 4
+        return
     def decode_set_value(self, is_write, reg_addr, value_byte):
-
-        current_register = self.register_map[self.current_bank][reg_addr]
-        bitfields = self.load_bitfields(current_register)
 
         # TODO: check this by name
         # ******* SET BANK **************
-        if reg_addr == 0x7F:
-            self.current_bank = value_byte >> 4
-            return
+        if self.set_bank_reg(reg_addr):
+            return self.set_bank(reg_addr, value_byte)
+
 
         # ****IDENTIFIED WRITE TO REG W/ NEW VALUE ***
         debug_print("SET %s to %s (%s)" % (self._reg_name(reg_addr),  self._b(value_byte), self._h(value_byte)))
 
-        return self.decode_by_bitfield(current_register, value_byte, is_write)
+        return self.decode_by_bitfield(reg_addr, value_byte, is_write)
 
-    def decode_by_bitfield(self, current_register, new_value, is_write):
-        # old value could be last written value
-        old_value = current_register['last_read_value']
-        bitfields = self.load_bitfields(current_register)
+    def decode_by_bitfield(self, register_address, new_value, is_write):
 
-        return self.bitfield_changes_str(old_value, new_value, bitfields)
+        if not self._reg_known(register_address):
+            return self.default_txn_summary(register_address, new_value, is_write)
+
+        if is_write:
+            old_value = self.register_map[self.current_bank][register_address]['last_read_value']
+            # demeter is rolling over in his grave
+            self.register_map[self.current_bank][register_address]['last_written_value'] = new_value
+        else:
+            old_value = self.register_map[self.current_bank][register_address]['last_written_value']
+            self.register_map[self.current_bank][register_address]['last_read_value'] = new_value
+
+        if 'last_change' in self.register_map[self.current_bank][register_address]:
+            ov2 = self.register_map[self.current_bank][register_address]['last_change']
+        else:
+            ov2 = 0
+        #print("old value:", ov2, "new value:", new_value)
+        bitfields = self.load_bitfields(self.register_map[self.current_bank][register_address])
+
+        ch_str = self.bitfield_changes_str(ov2, new_value, bitfields)
+        self.register_map[self.current_bank][register_address]['last_change'] = new_value
+        #return self.bitfield_changes_str(old_value, new_value, bitfields)
+        return ch_str
 
     def bitfield_changes_str(self, old_value, new_value, bitfields):
         unset_bitmask, set_bitmask = self.bitwise_diff(old_value, new_value)
@@ -282,8 +303,8 @@ class RegisterDecoder:
             bf_change_str = self.bitfield_change_str(bitfield, unset_bitmask, set_bitmask, new_value)
             if bf_change_str:
                 changes_str += bf_change_str+"\n"
-            else:
-                changes_str += "\tno changes to bitfield: %s %s\n"%(bitfield[0], self._b(bitfield[1]))
+            # else:
+            #     changes_str += "\tno changes to bitfield: %s %s\n"%(bitfield[0], self._b(bitfield[1]))
         return changes_str
 
     def bitfield_change_str(self, bitfield, unset_bitmask, set_bitmask, new_value):
