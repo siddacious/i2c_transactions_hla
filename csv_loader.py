@@ -1,6 +1,7 @@
 from sys import argv
 from csv import DictReader
 import json
+import os
 class RegisterMapLoader:
     def __init__(self, map_source=None):
         self.map_source = map_source
@@ -50,11 +51,13 @@ class RegisterMapLoader:
             bitfield_mask = (1 << idx)
         return (bitfield_name, bitfield_mask)
 class CSVRegisterMapLoader(RegisterMapLoader):
-    def __init__(self, csv_files=None, serial_device=None):
+    def __init__(self, csv_file=None, csv_files=None, serial_device=None):
         self._map = {0:{}}
         # self._map = {0: {}}
         # raise RuntimeError((csv_files))
         # raise RuntimeError(str(csv_files))
+        if csv_file and not csv_files:
+            csv_files = [csv_file]
         for index, csv_file in enumerate(csv_files):
             self.parse_csv_bank(csv_file, index)
         # when to clear? consume on read match
@@ -79,6 +82,15 @@ class CSVRegisterMapLoader(RegisterMapLoader):
 
 
 if __name__ == "__main__":
+    if len(argv) == 0:
+        print("csv_loader.py <csv_register_map>.csv [--pickle]")
+    filename = argv[1]
+    if not os.path.exists(filename):
+        raise AttributeError("CSV file %s cannot be found"%filename)
 
-    loader = CSVRegisterMapLoader(argv[1:])
-
+    loader = CSVRegisterMapLoader(csv_file=filename)
+    if len(argv) == 3 and "--pickle" in argv:
+        import pickle
+        pickle_name = filename.split(".")[0]+".pickle"
+        with open(pickle_name, "wb") as f:
+            pickle.dump(loader.map, f)

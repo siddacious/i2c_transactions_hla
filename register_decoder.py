@@ -72,19 +72,18 @@ def pretty(d, indent=0):
 # TODO: multi-byte register handling
 class RegisterDecoder:
 
-    def __init__(self, register_map=None):
+    def __init__(self, register_map=None, pickled_map_path=None):
         self.register_map = register_map
         self.register_width = 1
 
-        # TODO: FIX THIS HACK
-        # if self.register_map:
-        #     import pickle
-        #     pickle.dump( self.register_map, open( "as7341_map.pypickle", "wb" ) )
-        if register_map is  None:
-            from os.path import exists
-            from pickle import load
-            if exists('/Users/bs/dev/tooling/i2c_txns/as7341_map.pypickle'):
-                self.register_map  = load( open( '/Users/bs/dev/tooling/i2c_txns/as7341_map.pypickle', "rb" ) )
+        if register_map is None:
+            if pickled_map_path:
+                from os.path import exists
+                from pickle import load
+                if exists(pickled_map_path):
+                    self.register_map  = load( open( pickled_map_path, "rb" ) )
+                else:
+                    AttributeError("you must provide a pickled register map")
             else:
                 AttributeError("you must provide a register map")
         self.prev_single_byte_write = None
@@ -134,12 +133,7 @@ class RegisterDecoder:
         print(self.decode_bytes(is_write, b0, b1))
 
     def decode_transaction(self, reg_txn):
-        # OK! Here we should know READ/WRITE, Register, and Data
-        # all we need is
-        # - register name
-        # - prev register value if any
-        # reg_txn_string = str(reg_txn)+" fupa"
-        # print(reg_txn)
+
         reg_txn_string = ""
         try:
             reg_txn_string = self.process_register_transaction(reg_txn.register_address, reg_txn.data, reg_txn.write)
@@ -151,21 +145,27 @@ class RegisterDecoder:
             import traceback
             track = traceback.format_exc()
             print(track)
-
+        reg_txn_string = reg_txn_string.strip()
+        if not reg_txn_string:
+            reg_txn_string = self.default_txn_summary(reg_txn.register_address, reg_txn.data, reg_txn.write)
         return reg_txn_string
 
-    def default_txn_summary(self, register_address, byte, is_write):
-        txn_string = "\t<default>"
-        if is_write:
-            txn_string += "WRITE to "
-        else:
-            txn_string += "READ from "
-        reg_addr_str = self._h(register_address)
-        data_str = self._h(byte)
-        txn_string += "%s [%s]"%(reg_addr_str, data_str)
-        # return txn_string
-        return ""
+    def default_txn_summary(self, register_address, data, is_write):
+        if not hasattr(data, "__len__"):
+            data = [data]
 
+        if is_write:
+            rw = "WRITE"
+        else:
+            rw = 'READ'
+
+        data_format_str = "0x{datum:02X}"
+        format_str = "[NOMATCH: 0x{register_address:02X}] {rw} reg: 0x{register_address:02X} data bytes: {data_str}"
+
+        data_str = ", ".join([data_format_str.format(datum=x) for x in data])
+        txn_string = format_str.format(register_address=register_address, rw=rw, data_str=data_str)
+        print("\t"+txn_string)
+        return txn_string
 
         # read
             # data register readings
@@ -270,29 +270,22 @@ class RegisterDecoder:
 
         return self.decode_by_bitfield(reg_addr, value_byte, is_write)
 
+    # TODO: this all needs to be reworked to use a register state object and register objects (or namedtuples)
+    # we don't care about incoming data nearly as much as outgoing data send by the library/driver
     def decode_by_bitfield(self, register_address, new_value, is_write):
 
         if not self._reg_known(register_address):
             return self.default_txn_summary(register_address, new_value, is_write)
 
-        if is_write:
-            old_value = self.register_map[self.current_bank][register_address]['last_read_value']
-            # demeter is rolling over in his grave
-            self.register_map[self.current_bank][register_address]['last_written_value'] = new_value
-        else:
-            old_value = self.register_map[self.current_bank][register_address]['last_written_value']
-            self.register_map[self.current_bank][register_address]['last_read_value'] = new_value
-
         if 'last_change' in self.register_map[self.current_bank][register_address]:
-            ov2 = self.register_map[self.current_bank][register_address]['last_change']
+            old_value = self.register_map[self.current_bank][register_address]['last_change']
         else:
-            ov2 = 0
-        #print("old value:", ov2, "new value:", new_value)
+            old_value = 0
         bitfields = self.load_bitfields(self.register_map[self.current_bank][register_address])
 
-        ch_str = self.bitfield_changes_str(ov2, new_value, bitfields)
+        ch_str = self.bitfield_changes_str(old_value, new_value, bitfields)
         self.register_map[self.current_bank][register_address]['last_change'] = new_value
-        #return self.bitfield_changes_str(old_value, new_value, bitfields)
+
         return ch_str
 
     def bitfield_changes_str(self, old_value, new_value, bitfields):
@@ -369,7 +362,6 @@ class RegisterDecoder:
     # a_minus_b = a & ~b
     def bitwise_diff(self, old_value, new_value):
         if old_value is None:
-            print("old value defaulting to 0")
             old_value = 0
         set_bitmask =  (new_value & (~old_value))
         unset_bitmask = (old_value & (~new_value))
