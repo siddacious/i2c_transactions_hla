@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+from os.path import exists
+from csv import DictReader
+from pickle import dump
+from pprint import pprint
+from sys import argv
+
+def pretty(d, indent=0):
+  for key, value in d.items():
+    print('  ' * indent + "k:"+str(key))
+    if isinstance(value, dict):
+      pretty(value, indent+1)
+    else:
+      print('  ' * (indent+1) + "↳"+str(value))
+
+
+
+if len(argv)> 1:
+  csv_file = argv[1]
+else:
+  print("you must provide a CVCSV")
+  exit(1)
+
+csv_dict_list = []
+with open(csv_file, "r") as f:
+  csv_dict_list = list(DictReader(f))
+
+cvs = {}
+
+for cv_row_dict in csv_dict_list:
+  cvs_key = cv_row_dict['BITFIELD']
+  cvs[cvs_key] = {}
+  for k, v in cv_row_dict.items():
+    if k == 'BITFIELD':
+      cvs[cvs_key]['name'] = v
+      continue
+    try:
+      k_i = int(k)
+      cvs[cvs_key][k_i] = v
+    except:
+      cvs[cvs_key][k] = v
+
+print("CVs:")
+pretty(cvs)
+pickle_name = csv_file.split(".")[0]+".pickle"
+with open(pickle_name, "wb") as f:
+  dump(cvs,f)
+

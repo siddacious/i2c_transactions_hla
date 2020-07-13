@@ -4,6 +4,9 @@ import csv
 import re
 import itertools
 from sys import argv
+from os.path import exists
+from pickle import load
+
 DEBUG = 0
 VERBOSE = False
 ROW_NUMBER_OFFSET = 2
@@ -72,22 +75,29 @@ def pretty(d, indent=0):
 # TODO: multi-byte register handling
 class RegisterDecoder:
 
-    def __init__(self, register_map=None, pickled_map_path=None):
+    def __init__(self, register_map=None, pickled_map_path=None, pickled_cvs_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_cv.pickle"):
         self.register_map = register_map
         self.register_width = 1
-
+        self.cvs = {}
         if register_map is None:
             if pickled_map_path:
-                from os.path import exists
-                from pickle import load
                 if exists(pickled_map_path):
                     self.register_map  = load( open( pickled_map_path, "rb" ) )
                 else:
                     AttributeError("you must provide a pickled register map")
             else:
                 AttributeError("you must provide a register map")
+        if pickled_cvs_path:
+            if exists(pickled_cvs_path):
+                with open(pickled_cvs_path, 'rb') as f:
+                    self.cvs = load(f)
+
+
         self.prev_single_byte_write = None
         self.current_bank = 0
+        pretty(self.register_map)
+        #self.load_cvs("./maps/as7341_cv.csv")
+
 
     def decode(self, row_num, row):
         adjusted_row_num = row_num + ROW_NUMBER_OFFSET
@@ -164,7 +174,7 @@ class RegisterDecoder:
 
         data_str = ", ".join([data_format_str.format(datum=x) for x in data])
         txn_string = format_str.format(register_address=register_address, rw=rw, data_str=data_str)
-        print("\t"+txn_string)
+        #print("\t"+txn_string)
         return txn_string
 
         # read
@@ -303,6 +313,10 @@ class RegisterDecoder:
     def bitfield_change_str(self, bitfield, unset_bitmask, set_bitmask, new_value):
         bf_name, bf_mask, bf_shift = bitfield
         change_str = None
+        if bf_name in self.cvs:
+            bf_cv = self.cvs[bf_name]
+        else:
+            bf_cv = None
         if bf_mask>>bf_shift == 0b1: # single bit mask ? not if masks aren't shifted
             if (bf_mask & unset_bitmask):
                 change_str = "%s was unset"%bf_name
@@ -311,8 +325,13 @@ class RegisterDecoder:
         else:
             if (bf_mask & unset_bitmask) or (bf_mask & set_bitmask):
                 bf_value = (bf_mask & new_value)>>bf_shift
-                if bf_name in hardcoded_cvs:
-                    bf_value = hardcoded_cvs[bf_name][bf_value]
+                if bf_name in self.cvs:
+                    try:
+                        bf_value = self.cvs[bf_name][bf_value]
+                    except KeyError as e:
+                        print(bf_name, "has no key: %s"%bf_value)
+                        pretty(self.cvs[bf_name])
+                        bf_value = bf_value
                 else:
                     bf_value = hex(bf_value)
                 change_str = "%s was changed to %s"%(bf_name, bf_value)
