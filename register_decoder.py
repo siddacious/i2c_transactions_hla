@@ -13,7 +13,6 @@ ROW_NUMBER_OFFSET = 2
 ROW_NUMBER_OFFSET = 2
 bank0 = None
 bank1 = None
-print("*"*100)
 BITFIELD_REGEX = '^([^\[]+)\[(\d):(\d)\]$' # matches WHO_AM_I[7:0], DISABLE_ACCEL[5:3] etc.
 
 #self.register_map_file = '/Users/bs/dev/tooling/i2c_txns/maps/as7341_map.csv'
@@ -75,10 +74,15 @@ def pretty(d, indent=0):
 # TODO: multi-byte register handling
 class RegisterDecoder:
 
-    def __init__(self, register_map=None, pickled_map_path=None, pickled_cvs_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_cv.pickle"):
-        self.register_map = register_map
+    def __init__(self, register_map=None, log_path="/Users/bs/cp/Adafruit_CircuitPython_AS7341/reg.log", pickled_map_path=None, pickled_cvs_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_cv.pickle"):
+        #self.register_map = register_map
         self.register_width = 1
         self.cvs = {}
+        # if not exists(log_path):
+        #     with open(log_path, 'x') as f:
+        #         f.write("")
+
+        self.log_file = open("/Users/bs/cp/Adafruit_CircuitPython_AS7341/reg.log", "a")
         if register_map is None:
             if pickled_map_path:
                 if exists(pickled_map_path):
@@ -96,8 +100,6 @@ class RegisterDecoder:
         self.prev_single_byte_write = None
         self.current_bank = 0
         pretty(self.register_map)
-        #self.load_cvs("./maps/as7341_cv.csv")
-
 
     def decode(self, row_num, row):
         adjusted_row_num = row_num + ROW_NUMBER_OFFSET
@@ -143,7 +145,8 @@ class RegisterDecoder:
         print(self.decode_bytes(is_write, b0, b1))
 
     def decode_transaction(self, reg_txn):
-
+        #if reg_txn.write: print("WRITE")
+        #if not reg_txn.write: print("READ")
         reg_txn_string = ""
         try:
             reg_txn_string = self.process_register_transaction(reg_txn.register_address, reg_txn.data, reg_txn.write)
@@ -158,6 +161,9 @@ class RegisterDecoder:
         reg_txn_string = reg_txn_string.strip()
         if not reg_txn_string:
             reg_txn_string = self.default_txn_summary(reg_txn.register_address, reg_txn.data, reg_txn.write)
+
+        self.log_file.write(reg_txn_string+"\n")
+        self.log_file.flush()
         return reg_txn_string
 
     def default_txn_summary(self, register_address, data, is_write):
@@ -169,8 +175,9 @@ class RegisterDecoder:
         else:
             rw = 'READ'
 
-        data_format_str = "0x{datum:02X}"
-        format_str = "[NOMATCH: 0x{register_address:02X}] {rw} reg: 0x{register_address:02X} data bytes: {data_str}"
+        data_format_str = "0x{datum:02X} 0b{datum:08b}"
+        format_str = "{rw} ADDR: 0x{register_address:02X} Data: {data_str}"
+        # format_str = "[NOMATCH: 0x{register_address:02X}] {rw} reg: 0x{register_address:02X} data bytes: {data_str}"
 
         data_str = ", ".join([data_format_str.format(datum=x) for x in data])
         txn_string = format_str.format(register_address=register_address, rw=rw, data_str=data_str)
@@ -211,7 +218,7 @@ class RegisterDecoder:
             #         reg_addr == 0x7F:
             #         self.current_bank = value_byte >> 4
             #     return
-    # TODO: Blank txns
+
     def process_register_transaction(self, register_address, data, is_write):
         """Update register state cache and return the transaction summary for the current register state"""
 
@@ -311,30 +318,43 @@ class RegisterDecoder:
         return changes_str
 
     def bitfield_change_str(self, bitfield, unset_bitmask, set_bitmask, new_value):
+        # bitfield value
+        # bfname
+        # bfvalue name
+        # set/unset
+        # old bf value
         bf_name, bf_mask, bf_shift = bitfield
+        bf_value = (bf_mask & new_value)>>bf_shift
+
+
         change_str = None
+        bf_cv = None
+
         if bf_name in self.cvs:
             bf_cv = self.cvs[bf_name]
+            try:
+                bf_value = bf_cv[bf_value]
+            except KeyError as e:
+                print(bf_name, "has no key: %s"%bf_value)
+                pretty(bf_cv)
+                bf_value = self._h(bf_value)
+
         else:
-            bf_cv = None
-        if bf_mask>>bf_shift == 0b1: # single bit mask ? not if masks aren't shifted
-            if (bf_mask & unset_bitmask):
-                change_str = "%s was unset"%bf_name
-            if (bf_mask & set_bitmask):
-                change_str = "%s was set"%bf_name
-        else:
-            if (bf_mask & unset_bitmask) or (bf_mask & set_bitmask):
-                bf_value = (bf_mask & new_value)>>bf_shift
-                if bf_name in self.cvs:
-                    try:
-                        bf_value = self.cvs[bf_name][bf_value]
-                    except KeyError as e:
-                        print(bf_name, "has no key: %s"%bf_value)
-                        pretty(self.cvs[bf_name])
-                        bf_value = bf_value
-                else:
-                    bf_value = hex(bf_value)
-                change_str = "%s was changed to %s"%(bf_name, bf_value)
+            bf_value = self._h(bf_value)
+        change_str = "%s : %s"%(bf_name, bf_value)
+
+        # if bf_mask>>bf_shift == 0b1: # single bit mask ? not if masks aren't shifted
+        #     if (bf_mask & unset_bitmask):
+        #         change_str = "%s was unset"%bf_name
+        #     if (bf_mask & set_bitmask):
+        #         change_str = "%s was set"%bf_name
+        # else:
+
+
+
+
+
+
         if DEBUG >=2 and change_str:
             change_str = "\t%s"%change_str
         return change_str

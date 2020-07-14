@@ -11,7 +11,7 @@ class Transaction:
     """A class representing a complete read or write transaction between an I2C Master and a slave device with addressable registers"""
     end_time: float
     #is_multibyte_read: bool
-    is_write: bool
+    write: bool
     start_time: float
     _last_addr_frame: int
     data: bytearray
@@ -22,7 +22,7 @@ class Transaction:
         self.end_time = None
         self.register_address = None
         self.data = bytearray()
-        self.write = True 
+        self.write = None
 
         # we would know this if prev start was a read and len(data) >1
         # this means it is likely reading from a data register, right? Unless registers are muilti-byte (config). This would matter if reads were auto incrementing and we
@@ -47,6 +47,8 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
     # json_register_map_path = StringSetting(label='Register map (JSON)')
     # csv_register_map_path = StringSetting(label='Register map (CSV)')
     pickled_register_map_path = StringSetting(label='Register map (Python Pickle)')
+    log_file_path = StringSetting(label='Log file path')
+
 
 #    # List of settings that a user can set for this High Level Analyzer.
 #     my_string_setting = StringSetting()
@@ -83,12 +85,13 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
     def _init_decoder(self):
         if self.pickled_register_map_path and os.path.exists(self.pickled_register_map_path):
-            self.decoder = RegisterDecoder(pickled_map_path=self.pickled_register_map_path)
+            self.decoder = RegisterDecoder(pickled_map_path=self.pickled_register_map_path, log_path=self.log_file_path)
         # CSV support here
 
     def process_transaction(self):
         # This doesn't need to be in here?
         self.current_transaction.register_address = self.current_transaction.data.pop(0)
+        self.current_transaction.write = self.address_is_write
         # we can also set the type here
         transaction_string = self.decoder.decode_transaction(self.current_transaction)
 
