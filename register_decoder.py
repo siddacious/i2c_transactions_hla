@@ -293,15 +293,24 @@ class RegisterDecoder:
 
         if not self._reg_known(register_address):
             return self.default_txn_summary(register_address, new_value, is_write)
+        prev_key = 'last_write'
+        current_key = 'last_read'
+        old_value = 0
 
-        if 'last_change' in self.register_map[self.current_bank][register_address]:
-            old_value = self.register_map[self.current_bank][register_address]['last_change']
-        else:
-            old_value = 0
+        rw = "r "
+        if is_write:
+            rw = "w "
+            prev_key = 'last_read'
+            current_key = 'last_write'
+        if not is_write:
+            return "r"
+        if prev_key in self.register_map[self.current_bank][register_address]:
+            old_value = self.register_map[self.current_bank][register_address][prev_key]
+
         bitfields = self.load_bitfields(self.register_map[self.current_bank][register_address])
 
-        ch_str = self.bitfield_changes_str(old_value, new_value, bitfields)
-        self.register_map[self.current_bank][register_address]['last_change'] = new_value
+        ch_str = rw+self.bitfield_changes_str(old_value, new_value, bitfields)
+        self.register_map[self.current_bank][register_address][current_key] = new_value
 
         return ch_str
 
@@ -309,25 +318,24 @@ class RegisterDecoder:
         unset_bitmask, set_bitmask = self.bitwise_diff(old_value, new_value)
         changes_str = ""
         for bitfield in bitfields:
-            # this will only process one bf
             bf_change_str = self.bitfield_change_str(bitfield, unset_bitmask, set_bitmask, new_value)
             if bf_change_str:
+                print(bf_change_str)
                 changes_str += bf_change_str+"\n"
-            # else:
-            #     changes_str += "\tno changes to bitfield: %s %s\n"%(bitfield[0], self._b(bitfield[1]))
+
         return changes_str
 
     def bitfield_change_str(self, bitfield, unset_bitmask, set_bitmask, new_value):
-        # bitfield value
-        # bfname
-        # bfvalue name
-        # set/unset
-        # old bf value
+
         bf_name, bf_mask, bf_shift = bitfield
-        bf_value = (bf_mask & new_value)>>bf_shift
+        bf_value = (bf_mask & new_value) >> bf_shift
 
-
+        bf_set = (bf_mask & set_bitmask) >0
+        bf_unset = (bf_mask & unset_bitmask) > 0
+        byte_changed = (unset_bitmask > 0) or (set_bitmask > 0)
         change_str = None
+        if byte_changed and ( not (bf_set or bf_unset)):
+            return change_str
         bf_cv = None
 
         if bf_name in self.cvs:
@@ -342,21 +350,6 @@ class RegisterDecoder:
         else:
             bf_value = self._h(bf_value)
         change_str = "%s : %s"%(bf_name, bf_value)
-
-        # if bf_mask>>bf_shift == 0b1: # single bit mask ? not if masks aren't shifted
-        #     if (bf_mask & unset_bitmask):
-        #         change_str = "%s was unset"%bf_name
-        #     if (bf_mask & set_bitmask):
-        #         change_str = "%s was set"%bf_name
-        # else:
-
-
-
-
-
-
-        if DEBUG >=2 and change_str:
-            change_str = "\t%s"%change_str
         return change_str
 
     # TODO: make a bf object or namedtuple
