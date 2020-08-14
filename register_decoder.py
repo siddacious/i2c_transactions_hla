@@ -6,6 +6,7 @@ import itertools
 from sys import argv
 from os.path import exists
 from pickle import load
+from struct import unpack_from
 
 DEBUG = 0
 VERBOSE = False
@@ -16,6 +17,22 @@ bank1 = None
 BITFIELD_REGEX = '^([^\[]+)\[(\d):(\d)\]$' # matches WHO_AM_I[7:0], DISABLE_ACCEL[5:3] etc.
 
 #self.register_map_file = '/Users/bs/dev/tooling/i2c_txns/maps/as7341_map.csv'
+
+# class RegisterStateStore:
+#     pass
+# # children should have access to parent
+# class Register:
+#     # has_many: bitfields
+#         pass
+#     class Bitfield:
+#         @property
+#         def auto_clear(self):
+#             pass
+#         pass
+#         class BitfieldCV:
+#             # bool: always print
+#             def __str__(self):
+#                 pass
 
 hardcoded_cvs = {
     "GYRO_FS_SEL" : [
@@ -70,19 +87,51 @@ def pretty(d, indent=0):
         else:
             print(' ' * (indent+1) + "↳"+str(value))
 
+# TODO: multi-byte register handling
+class BNODecoder:
+    def __init__(self, register_map={0:{}}, log_path="/Users/bs/cp/Adafruit_CircuitPython_AS7341/reg.log", pickled_map_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_map_update.pickle", pickled_cvs_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_cv.pickle"):
+        pass
+
+    def get_header(self, buffer):
+
+        packet_byte_count = unpack_from("<H", buffer)[0]
+        packet_byte_count &= ~0x8000
+        channel_number = unpack_from("<B", buffer, offset=2)[0]
+        sequence_number = unpack_from("<B", buffer, offset=3)[0]
+        return (packet_byte_count, channel_number, sequence_number)
+
+    def decode_transaction(self, reg_txn):
+        data = reg_txn.data
+        data.insert(0, reg_txn.register_address)
+        out = ""
+        data_start=0
+        if len(reg_txn.data) >= 4:
+            packet_byte_count, channel_number, sequence_number = self.get_header(data)
+            out += " Len:"+str(packet_byte_count)
+            out += " Chan:"+str(channel_number)
+            out += " Seq:"+str(sequence_number)
+            data_start=4
+        if reg_txn.write:
+            out += "    WRITE"
+        else:
+            out += "    READ"
+
+        out += " %s"%[hex(i) for i in data[data_start:]]
+
+        return out
+
 # TODO: option to print/report unchanged bitfields
 # TODO: multi-byte register handling
 class RegisterDecoder:
 
-    def __init__(self, register_map=None, log_path="/Users/bs/cp/Adafruit_CircuitPython_AS7341/reg.log", pickled_map_path=None, pickled_cvs_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_cv.pickle"):
+    def __init__(self, register_map={0:{}}, log_path="/Users/bs/cp/Adafruit_CircuitPython_AS7341/reg.log", pickled_map_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_map_update.pickle", pickled_cvs_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_cv.pickle"):
         #self.register_map = register_map
         self.register_width = 1
         self.cvs = {}
-        # if not exists(log_path):
-        #     with open(log_path, 'x') as f:
-        #         f.write("")
-
-        self.log_file = open("/Users/bs/cp/Adafruit_CircuitPython_AS7341/reg.log", "a")
+        print("***"*30)
+        self.register_map = {}
+        self.register_map[0] = {}
+        self.log_file = open(log_path, "a")
         if register_map is None:
             if pickled_map_path:
                 if exists(pickled_map_path):
@@ -160,7 +209,8 @@ class RegisterDecoder:
             print(track)
         reg_txn_string = reg_txn_string.strip()
         if not reg_txn_string:
-            reg_txn_string = self.default_txn_summary(reg_txn.register_address, reg_txn.data, reg_txn.write)
+            #reg_txn_string = self.default_txn_summary(reg_txn.register_address, reg_txn.data, reg_txn.write)
+            reg_txn_string = ""
 
         self.log_file.write(reg_txn_string+"\n")
         self.log_file.flush()
@@ -184,40 +234,7 @@ class RegisterDecoder:
         #print("\t"+txn_string)
         return txn_string
 
-        # read
-            # data register readings
-                # single = single register
-                # multi
-                    # multi-byte data
-                    # multiple registers
-            # current value of config register to update
-                # single -bits & bitfields
-                # multi - thresholds, etc.
-            # reset/read bit
-        # write
-            # single
-            # changed config register
-                # reset/auto changing bit within config register
-                # bitfield CV
-            # multi
-                # multi-byte thresholds
-                # wierd registers
-        # result of above:
-            # output format will primarily be detmined by the format
-            # of the register ie: bitfields or not
 
-            # multi-byte txns may want to look ahead/behind:
-            # if current is single bitfield/byte and
-            # neighbor is the same name, join
-            # if diff, report current with new name
-
-            # if self._is_bank_change(register):
-            #     if is_write:
-            #     self._update_bank(register, data)
-            #     def _update_bank(self, register, data):
-            #         reg_addr == 0x7F:
-            #         self.current_bank = value_byte >> 4
-            #     return
 
     def process_register_transaction(self, register_address, data, is_write):
         """Update register state cache and return the transaction summary for the current register state"""
@@ -290,8 +307,8 @@ class RegisterDecoder:
     # TODO: this all needs to be reworked to use a register state object and register objects (or namedtuples)
     # we don't care about incoming data nearly as much as outgoing data send by the library/driver
     def decode_by_bitfield(self, register_address, new_value, is_write):
-
-        if not self._reg_known(register_address):
+        register = self.get_register(register_address)
+        if not register:
             return self.default_txn_summary(register_address, new_value, is_write)
         prev_key = 'last_write'
         current_key = 'last_read'
@@ -299,44 +316,84 @@ class RegisterDecoder:
 
         rw = "r "
         if is_write:
-            rw = "w "
+            rw = "W:%s"%register['name']
             prev_key = 'last_read'
             current_key = 'last_write'
-        if not is_write:
-            return "r"
-        if prev_key in self.register_map[self.current_bank][register_address]:
-            old_value = self.register_map[self.current_bank][register_address][prev_key]
 
-        bitfields = self.load_bitfields(self.register_map[self.current_bank][register_address])
 
-        ch_str = rw+self.bitfield_changes_str(old_value, new_value, bitfields)
-        self.register_map[self.current_bank][register_address][current_key] = new_value
+        if prev_key in register:
+            old_value = register[prev_key]
+        print("*"*30)
+        print(register['name'])
 
-        return ch_str
+        bitfields = self.load_bitfields(register)
+        print("old:%s new:%s"%(self._b(old_value), self._b(new_value)))
 
-    def bitfield_changes_str(self, old_value, new_value, bitfields):
         unset_bitmask, set_bitmask = self.bitwise_diff(old_value, new_value)
         changes_str = ""
+        # get bitfield changes
+        # bf-> old, new-> bf changed, new_bf_value, old_bf_value
+
         for bitfield in bitfields:
+            bf_name, bf_mask, bf_shift = bitfield
+
+            bf_changed = (bf_mask & set_bitmask) > 0 or  (bf_mask & unset_bitmask) > 0
+            byte_changed = (unset_bitmask > 0) or (set_bitmask > 0)
+
             bf_change_str = self.bitfield_change_str(bitfield, unset_bitmask, set_bitmask, new_value)
-            if bf_change_str:
-                print(bf_change_str)
+
+            if bf_changed or register['name'].startswith("SMUX_"):
                 changes_str += bf_change_str+"\n"
+        #
+
+
+
+        # ch_str = rw+self.bitfield_changes_str(old_value, new_value, bitfields)
+        register[current_key] = new_value
+
+        if is_write:
+            return bf_change_str
+        else:
+            return ""
+    def get_register(self, register_address):
+        if self._reg_known(register_address):
+            return self.register_map[self.current_bank][register_address]
+        return None
+
+        self.register_map[self.current_bank][register_address] = register
+    #local/outgoing changes should always be printed
+    # we don't want to see every failed poll for a self-clearing/status register
+    # we always want to print data register reads
+
+    #reads: data/sensors, state changes/polling,
+    # -current bitfield values before an update; can be thought of as a setup for a write
+    # signature: a> register <n>has more than one bitfield b> read to register <n>  immediately preceeding a write to <n>
+    # first heuristic: read from register with > 1 bitfield can be skipped
+
+
+    def bitfield_changes_str(self, old_value, new_value, bitfields):
+
 
         return changes_str
+    # def should_emit(self, register_address, is_write):
+    #     if register_address < 0x20:
+    #         return True
+    #     if is_write:
+    #         return True
 
     def bitfield_change_str(self, bitfield, unset_bitmask, set_bitmask, new_value):
 
         bf_name, bf_mask, bf_shift = bitfield
         bf_value = (bf_mask & new_value) >> bf_shift
 
-        bf_set = (bf_mask & set_bitmask) >0
-        bf_unset = (bf_mask & unset_bitmask) > 0
-        byte_changed = (unset_bitmask > 0) or (set_bitmask > 0)
-        change_str = None
-        if byte_changed and ( not (bf_set or bf_unset)):
-            return change_str
-        bf_cv = None
+        # bf_set = (bf_mask & set_bitmask) > 0
+        # bf_unset = (bf_mask & unset_bitmask) > 0
+
+        # change_str = None
+
+
+        # if not bf_changed:
+        #     return None
 
         if bf_name in self.cvs:
             bf_cv = self.cvs[bf_name]
@@ -345,6 +402,7 @@ class RegisterDecoder:
             except KeyError as e:
                 print(bf_name, "has no key: %s"%bf_value)
                 pretty(bf_cv)
+                # maybe print something other than hext
                 bf_value = self._h(bf_value)
 
         else:

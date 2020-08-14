@@ -1,7 +1,7 @@
 import os
 import json
 from saleae.analyzers import HighLevelAnalyzer, AnalyzerFrame, StringSetting, NumberSetting, ChoicesSetting
-from register_decoder import RegisterDecoder
+from register_decoder import RegisterDecoder, BNODecoder
 import csv_loader
 # import json_loader
 # https://support.saleae.com/extensions/analyzer-frame-types
@@ -61,7 +61,10 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
             'format': '{{data.out_str}}'
         },
         'transaction': {
-            'format': '{{data.transaction_string}}'
+            'format': '{{data.transaction_string}} {{data.test}}'
+        },
+        'fluff': {
+            'format': 'FLUFFY'
         }
     }
 
@@ -84,17 +87,43 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
 
     def _init_decoder(self):
-        if self.pickled_register_map_path and os.path.exists(self.pickled_register_map_path):
-            self.decoder = RegisterDecoder(pickled_map_path=self.pickled_register_map_path, log_path=self.log_file_path)
+        self.decoder = BNODecoder()
+        # if self.pickled_register_map_path and os.path.exists(self.pickled_register_map_path):
+        #     self.decoder = RegisterDecoder(pickled_map_path=self.pickled_register_map_path, log_path=self.log_file_path)
+        # else:
+        #     self.decoder = RegisterDecoder(log_path=self.log_file_path)
+
         # CSV support here
 
     def process_transaction(self):
         # This doesn't need to be in here?
-        self.current_transaction.register_address = self.current_transaction.data.pop(0)
+        if len(self.current_transaction.data) == 0:
+            print(" *******************trying to POP from empty data array *****************************************")
+            print(self.current_transaction)
+            print(" *******************               *****************************************")
+            transaction_string ="Tried to pop from empty data array"+ str(self.current_transaction)
+            new_frame = AnalyzerFrame('transaction',
+                self.current_transaction.start_time, self.current_transaction.end_time, {
+                'input_type': self.current_frame.type, 'transaction_string':transaction_string
+            })
+
+
+            self.current_transaction = None
+            return new_frame
+            # raise RuntimeError("Tried to pop from empty data array")
+
+        else:
+            self.current_transaction.register_address = self.current_transaction.data.pop(0)
         self.current_transaction.write = self.address_is_write
         # we can also set the type here
         transaction_string = self.decoder.decode_transaction(self.current_transaction)
-
+        if transaction_string == "":
+            new_frame = AnalyzerFrame('fluff',
+                self.current_transaction.start_time, self.current_transaction.end_time, {
+                'input_type': self.current_frame.type, 'transaction_string':transaction_string, 'test':"STRIING"
+        })
+            # return new_frame
+            return None
         new_frame = {
             'type': 'transaction',
             'start_time': self.current_transaction.start_time,
