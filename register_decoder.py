@@ -124,31 +124,34 @@ class BNODecoder:
 # TODO: multi-byte register handling
 class RegisterDecoder:
 
-    def __init__(self, register_map={0:{}}, log_path="/Users/bs/cp/Adafruit_CircuitPython_AS7341/reg.log", pickled_map_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_map_update.pickle", pickled_cvs_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_cv.pickle"):
+    def __init__(self, register_map={0:{}},
+        log_path="/Users/bs/cp/Adafruit_CircuitPython_AS7341/reg.log", 
+        pickled_map_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_map_update.pickle",
+        pickled_cvs_path="/Users/bs/dev/tooling/i2c_txns/maps/as7341_cv.pickle"):
         #self.register_map = register_map
         self.register_width = 1
         self.cvs = {}
-        print("***"*30)
         self.register_map = {}
         self.register_map[0] = {}
         self.log_file = open(log_path, "a")
-        if register_map is None:
-            if pickled_map_path:
-                if exists(pickled_map_path):
-                    self.register_map  = load( open( pickled_map_path, "rb" ) )
-                else:
-                    AttributeError("you must provide a pickled register map")
+        if pickled_map_path:
+            if exists(pickled_map_path):
+                self.register_map  = load( open( pickled_map_path, "rb" ) )
             else:
-                AttributeError("you must provide a register map")
-        if pickled_cvs_path:
-            if exists(pickled_cvs_path):
-                with open(pickled_cvs_path, 'rb') as f:
-                    self.cvs = load(f)
+                AttributeError("you must provide a pickled register map")
+        else:
+            AttributeError("you must provide a register map")
 
 
         self.prev_single_byte_write = None
         self.current_bank = 0
-        pretty(self.register_map)
+        if pickled_cvs_path:
+            if exists(pickled_cvs_path):
+                self.cvs  = load( open( pickled_cvs_path, "rb" ) )
+            else:
+                AttributeError("you must provide a pickled register map")
+        print("CVs:", self.cvs)
+
 
     def decode(self, row_num, row):
         adjusted_row_num = row_num + ROW_NUMBER_OFFSET
@@ -194,8 +197,8 @@ class RegisterDecoder:
         print(self.decode_bytes(is_write, b0, b1))
 
     def decode_transaction(self, reg_txn):
-        #if reg_txn.write: print("WRITE")
-        #if not reg_txn.write: print("READ")
+        if reg_txn.write: print("WRITE")
+        if not reg_txn.write: print("READ")
         reg_txn_string = ""
         try:
             reg_txn_string = self.process_register_transaction(reg_txn.register_address, reg_txn.data, reg_txn.write)
@@ -210,7 +213,7 @@ class RegisterDecoder:
         reg_txn_string = reg_txn_string.strip()
         if not reg_txn_string:
             #reg_txn_string = self.default_txn_summary(reg_txn.register_address, reg_txn.data, reg_txn.write)
-            reg_txn_string = ""
+            reg_txn_string = "        UNDECODED"
 
         self.log_file.write(reg_txn_string+"\n")
         self.log_file.flush()
@@ -309,6 +312,7 @@ class RegisterDecoder:
     def decode_by_bitfield(self, register_address, new_value, is_write):
         register = self.get_register(register_address)
         if not register:
+            print("cant find register for ", self._h(register_address))
             return self.default_txn_summary(register_address, new_value, is_write)
         prev_key = 'last_write'
         current_key = 'last_read'
@@ -323,8 +327,8 @@ class RegisterDecoder:
 
         if prev_key in register:
             old_value = register[prev_key]
-        print("*"*30)
-        print(register['name'])
+        # print("*"*30)
+        # print("'"+register['name']+"'")
 
         bitfields = self.load_bitfields(register)
         print("old:%s new:%s"%(self._b(old_value), self._b(new_value)))
@@ -333,7 +337,7 @@ class RegisterDecoder:
         changes_str = ""
         # get bitfield changes
         # bf-> old, new-> bf changed, new_bf_value, old_bf_value
-
+        bf_change_str = ""
         for bitfield in bitfields:
             bf_name, bf_mask, bf_shift = bitfield
 
@@ -349,6 +353,7 @@ class RegisterDecoder:
 
 
         # ch_str = rw+self.bitfield_changes_str(old_value, new_value, bitfields)
+        # print("CHANGE:", ch_str)
         register[current_key] = new_value
 
         if is_write:
@@ -396,6 +401,7 @@ class RegisterDecoder:
         #     return None
 
         if bf_name in self.cvs:
+            print("bf has CV:")
             bf_cv = self.cvs[bf_name]
             try:
                 bf_value = bf_cv[bf_value]

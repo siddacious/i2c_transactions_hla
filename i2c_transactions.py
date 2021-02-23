@@ -25,7 +25,7 @@ class Transaction:
         self.write = None
 
         # we would know this if prev start was a read and len(data) >1
-        # this means it is likely reading from a data register, right? Unless registers are muilti-byte (config). This would matter if reads were auto incrementing and we
+        # this means it is likely reading from a data register, right? Unless registers are multi-byte (config). This would matter if reads were auto incrementing and we
         # were reading multiple data registers simultaneously
         #self.is_multibyte_read = False
 
@@ -87,7 +87,8 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
 
     def _init_decoder(self):
-        self.decoder = BNODecoder()
+        # self.decoder = BNODecoder()
+        self.decoder = RegisterDecoder()
         # if self.pickled_register_map_path and os.path.exists(self.pickled_register_map_path):
         #     self.decoder = RegisterDecoder(pickled_map_path=self.pickled_register_map_path, log_path=self.log_file_path)
         # else:
