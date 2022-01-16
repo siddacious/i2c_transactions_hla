@@ -1,5 +1,5 @@
 from sys import argv
-from csv import DictReader
+from csv import DictReader, DictWriter
 import json
 import os
 class RegisterMapLoader:

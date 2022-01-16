@@ -107,4 +107,24 @@ As it stands, the code expects to get a ordered list of objects with each object
 ## Attribution
 ~~Derived from~~ A refactored ripoff of the [Example Gyroscope HLA](https://github.com/saleae/logic2-extensions/tree/master/hla_gyroscope) by [Ryan Huffman](https://github.com/huffman)
 
+# Notes
+Project Goals:
+Reduce Developer work in templating register interactions
+MVP: Datsheet extract csvs -> <device_name>_register_map.json/yml
+Device
+  I2C/SPI/Interface options
+    BE/LE
+    auto increment
+RegisterMap
+  Register
+		name
+    address
+    length(bytes)
 
+LATER: code w/getters/setters for all registers
+  output
+    ->getter/setter for each register w/cvs for bitfields
+  -actionable information on errors
+
+mvp: manually selected and extracted tables->
+ - register map object/list

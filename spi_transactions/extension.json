@@ -1,0 +1,13 @@
+{
+  "name": "SPI Transactions",
+  "apiVersion": "1.0.0",
+  "author": "Bryan Siepert",
+  "version": "0.0.1",
+  "description": "A Simple HLA for packaging SPI traffic",
+  "extensions": {
+    "SPI Transactions": {
+      "type": "HighLevelAnalyzer",
+      "entryPoint": "HighLevelAnalyzer.Hla"
+    }
+  }
+}

@@ -104,9 +104,12 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
             print(" *******************               *****************************************")
             transaction_string ="Tried to pop from empty data array"+ str(self.current_transaction)
             new_frame = AnalyzerFrame('transaction',
-                self.current_transaction.start_time, self.current_transaction.end_time, {
-                'input_type': self.current_frame.type, 'transaction_string':transaction_string
-            })
+                self.current_transaction.start_time,
+                self.current_transaction.end_time, {
+                    'input_type': self.current_frame.type,
+                    'transaction_string':transaction_string
+                }
+            )
 
 
             self.current_transaction = None

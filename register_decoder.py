@@ -133,7 +133,7 @@ class RegisterDecoder:
         self.cvs = {}
         self.register_map = {}
         self.register_map[0] = {}
-        self.log_file = open(log_path, "a")
+        # self.log_file = open(log_path, "a")
         if pickled_map_path:
             if exists(pickled_map_path):
                 self.register_map  = load( open( pickled_map_path, "rb" ) )
@@ -215,8 +215,6 @@ class RegisterDecoder:
             #reg_txn_string = self.default_txn_summary(reg_txn.register_address, reg_txn.data, reg_txn.write)
             reg_txn_string = "        UNDECODED"
 
-        self.log_file.write(reg_txn_string+"\n")
-        self.log_file.flush()
         return reg_txn_string
 
     def default_txn_summary(self, register_address, data, is_write):
