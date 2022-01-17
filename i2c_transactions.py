@@ -1,7 +1,7 @@
 import os
 import json
 from saleae.analyzers import HighLevelAnalyzer, AnalyzerFrame, StringSetting, NumberSetting, ChoicesSetting
-from register_decoder import RegisterDecoder, BNODecoder
+from register_decoder import RegisterDecoder
 import csv_loader
 # import json_loader
 # https://support.saleae.com/extensions/analyzer-frame-types
@@ -32,9 +32,9 @@ class Transaction:
     def __str__(self):
         out_str = ""
         if self.write:
-            out_str +="WRITE"
+            out_str +="WITE"
         else:
-            out_str +="READ"
+            out_str +="WEED"
         if self.register_address:
             out_str +=" RegAddr: 0x{:02X}".format(self.register_address)
         if len(self.data) > 0:
@@ -44,18 +44,6 @@ class Transaction:
         return out_str
 
 class I2CRegisterTransactions(HighLevelAnalyzer):
-    # json_register_map_path = StringSetting(label='Register map (JSON)')
-    # csv_register_map_path = StringSetting(label='Register map (CSV)')
-    pickled_register_map_path = StringSetting(label='Register map (Python Pickle)')
-    log_file_path = StringSetting(label='Log file path')
-
-
-#    # List of settings that a user can set for this High Level Analyzer.
-#     my_string_setting = StringSetting()
-#     my_number_setting = NumberSetting(min_value=0, max_value=100)
-#     my_choices_setting = ChoicesSetting(choices=('A', 'B'))
-
-    # TODO: consider other frame types
     result_types = {
         'i2c_frame  ': {
             'format': '{{data.out_str}}'
@@ -87,7 +75,6 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
 
     def _init_decoder(self):
-        # self.decoder = BNODecoder()
         self.decoder = RegisterDecoder()
         # if self.pickled_register_map_path and os.path.exists(self.pickled_register_map_path):
         #     self.decoder = RegisterDecoder(pickled_map_path=self.pickled_register_map_path, log_path=self.log_file_path)
