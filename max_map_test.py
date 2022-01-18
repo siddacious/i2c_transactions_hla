@@ -52,7 +52,7 @@ reference_map = {
         }
     }
 }
-BITFIELD_REGEX = '^([^\[]+)\[(\d):(\d)\]$' # matches WHO_AM_I[7:0], DISABLE_ACCEL[5:3] etc.
+BITFIELD_REGEX = '([^\[]+)\[(\d+):(\d+)\]' # matches WHO_AM_I[7:0], DISABLE_ACCEL[5:3] etc.
 def expand_bitfield(bitfield_thing):
 
         bf_name, bf_end, bf_start = bitfield_thing.groups()
@@ -65,7 +65,9 @@ def expand_bitfield(bitfield_thing):
             return []
 
         # we know that we need to end with this many, including this
-        return [ f"{bf_name}[{x}]" for x in range(bf_end, bf_start-1, -1)]
+        return [ f"{bf_name}[{bf_end}:{bf_start}]" for x in range(bf_end, bf_start-1, -1)]
+        # return [ f"{bf_name}[{x}]" for x in range(bf_end, bf_start-1, -1)]
+
 
 # why does it matter if a reg is expanded? it makes the bitfield bits more bitlike, but why?
 #
@@ -92,7 +94,7 @@ def handl_map(addr, reg):
     cells = expand_reg(reg)
     print(f"{hex(addr)}:", end=" ")
     for cell in cells:
-        print(f"\t{cell}", end="")
+        print(f"   {cell}", end="")
     print("")
 
 
@@ -103,41 +105,3 @@ if __name__ == "__main__":
         handl_map(addr, reg)
 
     print("++ Done ++\n\n")
-
-from collections import namedtuple
-I2CWrite = namedtuple('I2CWrite', 'address data')
-
-writes = [
-
-
-    I2CWrite(0x45, 0x00),
-    I2CWrite(0x1B, 0x10),
-    I2CWrite(0x1D, 0x60),
-    I2CWrite(0x22, 0x04),
-    I2CWrite(0x25, 0x01),
-    I2CWrite(0x22, 0x04),
-    I2CWrite(0x29, 0x00),
-    I2CWrite(0x29, 0x00),
-    I2CWrite(0x29, 0x00),
-    I2CWrite(0x29, 0x00),
-    I2CWrite(0x29, 0x00),
-    I2CWrite(0x29, 0x00),
-    I2CWrite(0x2A, 0x00),
-    I2CWrite(0x2A, 0x00),
-    I2CWrite(0x2A, 0x00),
-    I2CWrite(0x2A, 0x00),
-    I2CWrite(0x2A, 0x00),
-    I2CWrite(0x2A, 0x00),
-    I2CWrite(0x2B, 0x00),
-    I2CWrite(0x2B, 0x00),
-    I2CWrite(0x2C, 0x07),
-    I2CWrite(0x2D, 0x07),
-    I2CWrite(0x2C, 0x07),
-    I2CWrite(0x2D, 0x07),
-    I2CWrite(0x3F, 0x40),
-    I2CWrite(0x3F, 0xC0),
-    I2CWrite(0x3F, 0xC1),
-    I2CWrite(0x3F, 0xC3),
-    I2CWrite(0x41, 0x00),
-    I2CWrite(0x45, 0x80),
-]

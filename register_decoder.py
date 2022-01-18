@@ -177,8 +177,6 @@ class RegisterDecoder:
                 self.cvs  = load( open( pickled_cvs_path, "rb" ) )
             else:
                 AttributeError("you must provide a pickled register map")
-        print("CVs:", self.cvs)
-
 
     def decode(self, row_num, row):
         adjusted_row_num = row_num + ROW_NUMBER_OFFSET
@@ -286,8 +284,8 @@ class RegisterDecoder:
 
         # # verify that we have a register
         register = self.get_register(register_address)
-        return f"Reg: {register['name']}, Data:{hex(byte)}"
-        # return self.decode_by_bitfield(register_address, byte, is_write)
+        # return f"Reg: {register['name']}, Data:{hex(byte)}"
+        return self.decode_by_bitfield(register_address, byte, is_write)
 
     def decode_bytes(self, is_write, b0=None, b1=None):
 
@@ -345,59 +343,57 @@ class RegisterDecoder:
 
         # verify that we have a register
         register = self.get_register(register_address)
-        print("Processing:", register['name'], "Data:", hex(new_value))
         if not register:
-            print("cant find register for ", self._h(register_address))
             return self.default_txn_summary(register_address, new_value, is_write)
 
-        # This determines the "polarity" of the keys based on the traffic direction,
-        # read or write
-        # I WISH this worked
-        # ```mermaid
-        # flowchart TB
-        #     name(Bitfield Name)
-        #     shift(Bitfield Shift)
-        # ```
+        ######################################################################
+        # Get bitfield masks, names, etc. from raw field string:
+        # This can and should be loaded and cached at startup
+        bitfields = load_bitfields(register)
+
+        ########################################
+        # Read the Old Value from a cache, after trying to determine whiat key to use
+        # Use the new and old values to determine which bits were changed and from what to what
         if is_write:
             prev_key = 'last_read'
             current_key = 'last_write'
         else:
             prev_key = 'last_write'
             current_key = 'last_read'
-
-        # sets the old value from the value in the register, otherwise set a default
         old_value = 0
-        if prev_key in register:
-            old_value = register[prev_key]
-
-        # bitfields = BitfieldList.load_bitfields(register) ###########
-        print("old:%s new:%s"%(self._b(old_value), self._b(new_value)))
-
-        unset_bitmask, set_bitmask = self.bitwise_diff(old_value, new_value)
-        changes_str = ""
-
-
-        # get bitfield changes
-        # bf-> old, new-> bf changed, new_bf_value, old_bf_value
-        bf_change_str = ""
-        # for bitfield in bitfields:
-        #     bf_name, bf_mask, bf_shift = bitfield
-
-        #     bf_changed = (bf_mask & set_bitmask) > 0 or  (bf_mask & unset_bitmask) > 0
-        #     byte_changed = (unset_bitmask > 0) or (set_bitmask > 0)
-
-        #     bf_change_str = self.bitfield_change_str(bitfield, unset_bitmask, set_bitmask, new_value)
-
-        #     if bf_changed or register['name'].startswith("SMUX_"):
-        #         changes_str += bf_change_str+"\n"
-        # #
-
+        changes_str = f"{register['name'].title()}  --  "
         register[current_key] = new_value
 
+        if prev_key in register:
+            old_value = register[prev_key]
+        unset_bitmask, set_bitmask = self.bitwise_diff(old_value, new_value)
+
+
+        ### print diff, kinda
+
+        #### STRINGIFY #####
+        # for each of the bitfields, check to see if its mask overlaps with the set or unset masks
+        # assemble a complete change string from the change strings of the bitfields inside
+        bf_change_str = ""
+        for bitfield in bitfields:
+            # get the name, mask, and shift for the bitfield!!! # TODO: bitfield Class refactor
+            bf_name, bf_mask, bf_shift = bitfield
+
+            # mark changed if the set or unset masks overlap the bitfield's mask
+            bf_changed = (bf_mask & set_bitmask) > 0 or  (bf_mask & unset_bitmask) > 0
+            byte_changed = (unset_bitmask > 0) or (set_bitmask > 0) # WUT
+
+            # get a string representation of the change
+            bf_change_str = self.bitfield_change_str(bitfield, unset_bitmask, set_bitmask, new_value)
+
+            # if there was a change, append the change
+            if bf_changed:
+                changes_str += bf_change_str+", "
+
+        # return something
         if is_write:
-            return bf_change_str
-        else:
-            return ""
+            return changes_str
+        return ""
 
 
     def get_register(self, register_address):
@@ -464,6 +460,10 @@ class RegisterDecoder:
 
 if __name__ == "__main__":
 
+    MockTrans = namedtuple("MockTrans", "register_address data write")
+    decoder = RegisterDecoder()
+    transaction = MockTrans(0x1D, [0x60], True)
+    trans_string = decoder.decode_transaction(transaction)
     # get some test data
     # feed it to the thing
     # it should do some stuff
