@@ -220,13 +220,13 @@ class RegisterDecoder:
         print(self.decode_bytes(is_write, b0, b1))
 
     def decode_transaction(self, reg_txn):
-        if reg_txn.write: print("WRITE")
-        if not reg_txn.write: print("READ")
-        reg_txn_string = ""
-
+        if reg_txn.write:
+            reg_txn_string = "WRITE|   "
+        else:
+            reg_txn_string = "READ|   "
 
         try:
-            reg_txn_string = self.process_register_transaction(
+            reg_txn_string += self.process_register_transaction(
                 reg_txn.register_address,
                 reg_txn.data,
                 reg_txn.write
@@ -239,7 +239,7 @@ class RegisterDecoder:
             import traceback
             track = traceback.format_exc()
             print(track)
-        reg_txn_string = reg_txn_string.strip()
+        # reg_txn_string = reg_txn_string.strip()
 
         if not reg_txn_string:
             #reg_txn_string = self.default_txn_summary(reg_txn.register_address, reg_txn.data, reg_txn.write)
@@ -426,7 +426,6 @@ class RegisterDecoder:
         #     return None
 
         if bf_name in self.cvs:
-            print("bf has CV:")
             bf_cv = self.cvs[bf_name]
             try:
                 bf_value = bf_cv[bf_value]
@@ -434,11 +433,11 @@ class RegisterDecoder:
                 print(bf_name, "has no key: %s"%bf_value)
                 pretty(bf_cv)
                 # maybe print something other than hext
-                bf_value = self._h(bf_value)
+                # bf_value = self._h(bf_value)
 
         else:
-            bf_value = self._h(bf_value)
-        change_str = "%s : %s"%(bf_name, bf_value)
+            bf_value = bf_value
+        change_str = "%s: %s"%(bf_name, bf_value)
         return change_str
 
 ###################################################
