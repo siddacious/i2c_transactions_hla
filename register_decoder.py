@@ -333,32 +333,20 @@ class RegisterDecoder:
         unset_bitmask = (old_value & (~new_value))
         return (unset_bitmask, set_bitmask)
 
-
-    #######################################
-    #
-    # This function is TOO 000000000nG
-    #
-    #####################################
     def decode_by_bitfield(self, register_address, new_value, is_write):
 
+        if not is_write:
+            return ""
         # verify that we have a register
         register = self.get_register(register_address)
         if not register:
             return self.default_txn_summary(register_address, new_value, is_write)
 
-        ######################################################################
-        # Get bitfield masks, names, etc. from raw field string:
-        # This can and should be loaded and cached at startup
         bitfields = load_bitfields(register)
 
         change_bitmasks = self.get_bitwise_diff(new_value, is_write, register)
 
-        changes_str = self.get_bitfield_changes_str(new_value, register, bitfields, change_bitmasks)
-
-        # return something
-        if is_write:
-            return changes_str
-        return ""
+        return self.get_bitfield_changes_str(new_value, register, bitfields, change_bitmasks)
 
     def get_bitfield_changes_str(self, new_value, register, bitfields, change_bitmasks):
         # for each of the bitfields, check to see if its mask overlaps with the set or unset masks
@@ -394,7 +382,6 @@ class RegisterDecoder:
             old_value = register[prev_key]
         unset_bitmask, set_bitmask = self.bitwise_diff(old_value, new_value)
         return (unset_bitmask, set_bitmask)
-
 
     def get_register(self, register_address):
         """
