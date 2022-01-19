@@ -351,6 +351,33 @@ class RegisterDecoder:
         # This can and should be loaded and cached at startup
         bitfields = load_bitfields(register)
 
+        change_bitmasks = self.get_bitwise_diff(new_value, is_write, register)
+
+        changes_str = self.get_bitfield_changes_str(new_value, register, bitfields, change_bitmasks)
+
+        # return something
+        if is_write:
+            return changes_str
+        return ""
+
+    def get_bitfield_changes_str(self, new_value, register, bitfields, change_bitmasks):
+        # for each of the bitfields, check to see if its mask overlaps with the set or unset masks
+        # assemble a complete change string from the change strings of the bitfields inside
+        changes_str = f"{register['name'].title()}  --  "
+        unset_bitmask, set_bitmask = change_bitmasks
+        for bitfield in bitfields:
+            # get the name, mask, and shift for the bitfield!!! # TODO: bitfield Class refactor
+            bf_name, bf_mask, bf_shift = bitfield
+
+            # mark changed if the set or unset masks overlap the bitfield's mask
+            bf_changed = (bf_mask & set_bitmask) > 0 or  (bf_mask & unset_bitmask) > 0
+            # if there was a change, append the change
+            if bf_changed:
+                # get a string representation of the change
+                changes_str  += self.bitfield_change_str(bitfield, unset_bitmask, set_bitmask, new_value)+", "
+        return changes_str
+
+    def get_bitwise_diff(self, new_value, is_write, register):
         ########################################
         # Read the Old Value from a cache, after trying to determine whiat key to use
         # Use the new and old values to determine which bits were changed and from what to what
@@ -361,39 +388,12 @@ class RegisterDecoder:
             prev_key = 'last_write'
             current_key = 'last_read'
         old_value = 0
-        changes_str = f"{register['name'].title()}  --  "
         register[current_key] = new_value
 
         if prev_key in register:
             old_value = register[prev_key]
         unset_bitmask, set_bitmask = self.bitwise_diff(old_value, new_value)
-
-
-        ### print diff, kinda
-
-        #### STRINGIFY #####
-        # for each of the bitfields, check to see if its mask overlaps with the set or unset masks
-        # assemble a complete change string from the change strings of the bitfields inside
-        bf_change_str = ""
-        for bitfield in bitfields:
-            # get the name, mask, and shift for the bitfield!!! # TODO: bitfield Class refactor
-            bf_name, bf_mask, bf_shift = bitfield
-
-            # mark changed if the set or unset masks overlap the bitfield's mask
-            bf_changed = (bf_mask & set_bitmask) > 0 or  (bf_mask & unset_bitmask) > 0
-            byte_changed = (unset_bitmask > 0) or (set_bitmask > 0) # WUT
-
-            # get a string representation of the change
-            bf_change_str = self.bitfield_change_str(bitfield, unset_bitmask, set_bitmask, new_value)
-
-            # if there was a change, append the change
-            if bf_changed:
-                changes_str += bf_change_str+", "
-
-        # return something
-        if is_write:
-            return changes_str
-        return ""
+        return (unset_bitmask, set_bitmask)
 
 
     def get_register(self, register_address):
