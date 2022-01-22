@@ -6,14 +6,13 @@ MockTrans = namedtuple("MockTrans", "register_address data write")
 
 
 # Current register: {
-# 'address': 29, 
-# 'name': 'CLOCK RATIO NI MSB', 
-# 'last_read_value': None, 
-# 'reset_string': 0, 
+# 'address': 29,
+# 'name': 'CLOCK RATIO NI MSB',
+# 'last_read_value': None,
+# 'reset_string': 0,
 # 'raw_string': '—\tNI[14:8]\t'}
 # EXPANDED:
 # ['', 'NI[14:8]']
-
 
 def test_testing_tests():
     decoder = RegisterDecoder()

@@ -36,7 +36,7 @@ def expand_reg(reg):
 
     return expanded
 
-def load_bitfields(current_register):
+def load_bitfields(register_obj):
     """
     def get_register(self, register_address):
     if self._reg_known(register_address):
@@ -50,23 +50,18 @@ def load_bitfields(current_register):
     name, mask = ....
     collection[name] = byte & mask >>shift
     """
-    if 'bitfields' in current_register:
-        return current_register['bitfields']
-    # so, this is suggesting that the bitfields k/v is a list of bitfield defs?
+    if  'bitfields' in register_obj:
+        return register_obj['bitfields']
+
     bitfields = []
 
     prev_bitfield_name = None
-    print("Current register:", current_register)
 
-    expanded_bitfields = expand_reg(current_register)
-    print("bitfields:")
-    print(expanded_bitfields)
-
-    current_register = expanded_bitfields
+    expanded_bitfields = expand_reg(register_obj)
 
     for idx in range(8): # assumes fields have been built out
 
-        bitfield_def = current_register[idx] # <- treating like current_register is a list of bitfield defs
+        bitfield_def = expanded_bitfields[idx] # <- treating like register_obj is a list of bitfield defs
         bitfield_name, bitfield_mask, bitfield_shift = bitfield_def_to_bitfield(bitfield_def, idx)
 
         # If name is none (unused field) or the same as previous (bitfield)
@@ -76,8 +71,8 @@ def load_bitfields(current_register):
         bitfields.append((bitfield_name, bitfield_mask, bitfield_shift))
         prev_bitfield_name = bitfield_name
 
-
-    return bitfields
+    register_obj['bitfields'] = bitfields
+    return
 
 def bf_range_to_mask_width(bf_start, bf_end):
         bitfield_width = (bf_end-bf_start)+1

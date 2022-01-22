@@ -65,8 +65,6 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         self.current_frame = None
         self.current_transaction = None
         self.address_is_write = False
-        #self.register_map = None
-        # self.decoder = RegisterDecoder(register_map=self.register_map)
         self.decoder = None
 
         self._init_decoder()
@@ -76,12 +74,6 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
     def _init_decoder(self):
         self.decoder = RegisterDecoder()
-        # if self.pickled_register_map_path and os.path.exists(self.pickled_register_map_path):
-        #     self.decoder = RegisterDecoder(pickled_map_path=self.pickled_register_map_path, log_path=self.log_file_path)
-        # else:
-        #     self.decoder = RegisterDecoder(log_path=self.log_file_path)
-
-        # CSV support here
 
     def process_transaction(self):
         # This doesn't need to be in here?
@@ -90,6 +82,7 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
             print(self.current_transaction)
             print(" *******************               *****************************************")
             transaction_string ="Tried to pop from empty data array"+ str(self.current_transaction)
+
             new_frame = AnalyzerFrame('transaction',
                 self.current_transaction.start_time,
                 self.current_transaction.end_time, {
@@ -101,32 +94,29 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
 
             self.current_transaction = None
             return new_frame
-            # raise RuntimeError("Tried to pop from empty data array")
 
-        else:
-            self.current_transaction.register_address = self.current_transaction.data.pop(0)
+        self.current_transaction.register_address = self.current_transaction.data.pop(0)
         self.current_transaction.write = self.address_is_write
         # we can also set the type here
-        transaction_string = self.decoder.decode_transaction(self.current_transaction)
-        if transaction_string == "":
-            new_frame = AnalyzerFrame('fluff',
-                self.current_transaction.start_time, self.current_transaction.end_time, {
-                'input_type': self.current_frame.type, 'transaction_string':transaction_string, 'test':"STRIING"
-        })
-            # return new_frame
+        register_changes = self.decoder.decode_transaction(self.current_transaction)
+        # print("\nREGISTER CHANGES:")
+        # print(register_changes)
+        if len(register_changes) < 1:
+            print("NO CHANGE?!")
+            print(self.current_transaction)
             return None
-        new_frame = {
-            'type': 'transaction',
-            'start_time': self.current_transaction.start_time,
-            'end_time': self.current_transaction.end_time,
-            'data': {
-                'transaction_string' : transaction_string
-            }
-        }
+        register_change = register_changes[0]
+        bitfield_changes = "  ".join(register_changes[1])
+
         new_frame = AnalyzerFrame('transaction',
-            self.current_transaction.start_time, self.current_transaction.end_time, {
-            'input_type': self.current_frame.type, 'transaction_string':transaction_string
-        })
+            self.current_transaction.start_time,
+            self.current_transaction.end_time, {
+                'input_type': self.current_frame.type,
+                # 'transaction_string':transaction_string,
+                'register_name': register_change['name'],
+                'bitfield_changes': bitfield_changes,
+            }
+        )
 
         return new_frame
 
