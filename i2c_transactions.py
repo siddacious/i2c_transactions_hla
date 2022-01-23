@@ -1,5 +1,6 @@
 import os
 import json
+from struct import unpack
 from saleae.analyzers import HighLevelAnalyzer, AnalyzerFrame, StringSetting, NumberSetting, ChoicesSetting
 from register_decoder import RegisterDecoder
 import csv_loader
@@ -101,20 +102,28 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         register_changes = self.decoder.decode_transaction(self.current_transaction)
         # print("\nREGISTER CHANGES:")
         # print(register_changes)
-        if len(register_changes) < 1:
-            print("NO CHANGE?!")
-            print(self.current_transaction)
-            return None
-        register_change = register_changes[0]
-        bitfield_changes = "  ".join(register_changes[1])
+
+        register = register_changes[0]
+        print(f"reg byte: {register_changes[1]} len: {len(register_changes[1])}")
+        new_data = []
+
+        for datum in register_changes[1]:
+            # datum_value = unpack("<B", datum)[0]
+            new_data.append(f"0x{datum:02X} {datum:#010b}")
+
+        bitfield_changes = "  ".join(register_changes[2])
+
+        data_str = " ".join(new_data)
 
         new_frame = AnalyzerFrame('transaction',
             self.current_transaction.start_time,
             self.current_transaction.end_time, {
-                'input_type': self.current_frame.type,
-                # 'transaction_string':transaction_string,
-                'register_name': register_change['name'],
-                'bitfield_changes': bitfield_changes,
+                'Input Type': self.current_frame.type,
+                'Register Name': register['name'],
+                'Address (Hex)': f"0x{register['address']:02X}",
+                'Address (Bin)': f"{register['address']:#010b}",
+                'Value': data_str,
+                'Bitfield Changes': bitfield_changes,
             }
         )
 
@@ -182,7 +191,7 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
             transaction_frame = self.process_transaction()
             # expecting start to create a new txn?
             # should be created after start frame is processed
-            # which will set...??? frame start 
+            # which will set...??? frame start
             self.current_transaction = None
             return transaction_frame
 

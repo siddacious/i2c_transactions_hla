@@ -126,7 +126,7 @@ class RegisterDecoder:
 
             register = RegisterMap.get(current_address)
             bitfield_changes = self.decode_by_bitfield(register, value_byte, is_write)
-            register_changes += (register, bitfield_changes)
+            register_changes += (register, data, bitfield_changes)
 
         return register_changes
 
@@ -168,8 +168,8 @@ class RegisterDecoder:
     def bitfield_change_str(self, bitfield, new_value):
 
         bf_name, bf_value = self.bitfield_change(bitfield, new_value)
-
-        return self.map_bf_value_to_cv(bf_name, bf_value)
+        bf_change_str = self.map_bf_value_to_cv(bf_name, bf_value)
+        return bf_change_str
 
     def change_masks(self, new_value, is_write, register):
         ########################################
@@ -227,7 +227,8 @@ class RegisterDecoder:
         return bf_name,bf_value
 
     def map_bf_value_to_cv(self, bf_name, bf_value):
-        cv_value = f"{bf_name}: {bf_value}"
+
+        cv_value = f"{bf_name}: {bin(bf_value)} 0x{bf_value:02X}"
 
         # let's get the hell out here !
         if not (bf_name in self.cvs):
