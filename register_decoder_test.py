@@ -16,6 +16,7 @@ MockTrans = namedtuple("MockTrans", "register_address data write")
 
 def test_testing_tests():
     decoder = RegisterDecoder()
+    transaction = MockTrans(0x03 [0x04]
     transaction = MockTrans(0x1D, [0x60], True)
     trans_string = decoder.decode_transaction(transaction)
     assert trans_string == 'WRITE|   Clock Ratio Ni Msb  --  NI: 48, '

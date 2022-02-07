@@ -1,3 +1,4 @@
+from cmath import exp
 import re
 from collections import namedtuple
 
@@ -21,6 +22,10 @@ def expand_bitfield(bitfield_thing):
 
 def expand_reg(reg):
     # r"— — MIXHP RSELMIXHP LSEL MIXHPRG[1:0] MIXHPLG[1:0]"
+
+    raw_string = reg.get('raw_string')
+    if raw_string is None:
+        return reg
     pieces = reg['raw_string'].split()
     expanded = []
 
@@ -56,11 +61,9 @@ def load_bitfields(register_obj):
     bitfields = []
 
     prev_bitfield_name = None
-
-    expanded_bitfields = expand_reg(register_obj)
-
+    expanded_bitfields = register_obj['expanded_bitfields']
+    expanded_bitfields.reverse()
     for idx in range(8): # assumes fields have been built out
-
         bitfield_def = expanded_bitfields[idx] # <- treating like register_obj is a list of bitfield defs
         bitfield_name, bitfield_mask, bitfield_shift = bitfield_def_to_bitfield(bitfield_def, idx)
 
@@ -70,7 +73,6 @@ def load_bitfields(register_obj):
 
         bitfields.append((bitfield_name, bitfield_mask, bitfield_shift))
         prev_bitfield_name = bitfield_name
-
     register_obj['bitfields'] = bitfields
     return
 

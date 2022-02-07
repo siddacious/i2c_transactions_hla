@@ -24,7 +24,25 @@ first heuristic: read from register with > 1 bitfield can be skipped
 
 from collections import namedtuple
 from bitfield_list import *
-from max98091 import max_map
+from max98091_full import max_map
+
+# in: WEED RegAddr: 0x08 Bytes: [0x00]
+# out: [{'address': 8, 'name': 'MIC/DIRECT TO ADC'}, bytearray(b'\x00'), ''] 
+
+
+# reg byte: bytearray(b'\x00') len: 1
+
+
+# in: WEED RegAddr: 0x09 Bytes: [0x00]
+# out: [{'address': 9, 'name': 'LINE TO ADC'}, bytearray(b'\x00'), ''] 
+
+
+# reg byte: bytearray(b'\x00') len: 1
+
+
+# in: WEED RegAddr: 0x0A Bytes: [0x00]
+# out: [{'address': 10, 'name': 'ANALOG MIC LOOP'}, bytearray(b'\x00'), ''] 
+
 
 DEBUG = 1
 VERBOSE = True
@@ -50,10 +68,12 @@ class Register:
 
 class RegisterMap:
     register_map_dict = max_map
+
     @classmethod
     def get(cls, register_address):
-
-        return cls.register_map_dict[register_address]
+        if register_address in cls.register_map_dict:
+            return cls.register_map_dict[register_address]
+        return None
 
     @classmethod
     @property
@@ -125,6 +145,8 @@ class RegisterDecoder:
             current_address = register_address+(address_offset * self.register_width)
 
             register = RegisterMap.get(current_address)
+            if register is None:
+                break
             bitfield_changes = self.decode_by_bitfield(register, value_byte, is_write)
             register_changes += (register, data, bitfield_changes)
 
@@ -147,8 +169,7 @@ class RegisterDecoder:
         # for each of the bitfields, check to see if its mask overlaps with the set or unset masks
         # assemble a complete change string from the change strings of the bitfields inside
         changes = []
-        if register['address'] == 0x25:
-            print('WATCH OUT')
+
         unset_bitmask, set_bitmask = change_masks
         for bitfield in bitfields:
             if bitfield == "":
@@ -263,7 +284,7 @@ class RegisterDecoder:
 
     def decode_set_value(self, is_write, reg_addr, value_byte):
 
-        print("SET %s to %s (%s)" % (self._reg_name(reg_addr),  self._b(value_byte), self._h(value_byte)))
+        # print("SET %s to %s (%s)" % (self._reg_name(reg_addr),  self._b(value_byte), self._h(value_byte)))
 
         return self.decode_by_bitfield(reg_addr, value_byte, is_write)
 
@@ -282,16 +303,15 @@ class RegisterDecoder:
 
 
 if __name__ == "__main__":
-
     MockTrans = namedtuple("MockTrans", "register_address data write")
     decoder = RegisterDecoder()
     transactions = [
         #MockTrans(0x45, [0x00], True),
         #MockTrans(0x1B, [0x10], True),
         #MockTrans(0x1D, [0x60], True),
-        MockTrans(0x22, [0x04], True),
+        MockTrans(0x2C, [0x04], True),
         #MockTrans(0x25, [0x01], True),
-        MockTrans(0x22, [0x04], True),
+        # MockTrans(0x22, [0x04], True),
     ]
     for transaction in transactions:
         trans_string = decoder.decode_transaction(transaction)

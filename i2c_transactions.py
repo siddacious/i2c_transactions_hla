@@ -52,8 +52,8 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         'transaction': {
             'format': '{{data.transaction_string}} {{data.test}}'
         },
-        'fluff': {
-            'format': 'FLUFFY'
+        'unmatched': {
+            'format': '{{data.register_address}} {{data.rw}} {{data.bytes}}'
         }
     }
 
@@ -100,20 +100,36 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
         self.current_transaction.write = self.address_is_write
         # we can also set the type here
         register_changes = self.decoder.decode_transaction(self.current_transaction)
-        # print("\nREGISTER CHANGES:")
+        rw = ""
+        if self.current_transaction.write:
+            rw = "W"
+        else:
+            rw = "R"
+        if (len(register_changes) == 0 ) or (register_changes[0] is None):
+            # 'format': '{{data.register_address}} {{data.rw}} {{data.bytes}}'
+            new_frame = AnalyzerFrame(
+                'unmmatched',
+                self.current_transaction.start_time,
+                self.current_transaction.end_time, {
+                    'register_address': f"0x{self.current_transaction.register_address:02X}",
+                    'rw': rw,
+                    'bytes': self.current_transaction.data,
+
+                }
+            )
+            return new_frame
         # print(register_changes)
 
         register = register_changes[0]
         print(f"reg byte: {register_changes[1]} len: {len(register_changes[1])}")
-        new_data = []
-
+        new_data_hex = []
+        new_data_bin = []
         for datum in register_changes[1]:
             # datum_value = unpack("<B", datum)[0]
-            new_data.append(f"0x{datum:02X} {datum:#010b}")
+            new_data_hex.append(f"0x{datum:02X}")
+            new_data_bin.append(f"{datum:#010b}")
 
         bitfield_changes = "  ".join(register_changes[2])
-
-        data_str = " ".join(new_data)
 
         new_frame = AnalyzerFrame('transaction',
             self.current_transaction.start_time,
@@ -122,7 +138,8 @@ class I2CRegisterTransactions(HighLevelAnalyzer):
                 'Register Name': register['name'],
                 'Address (Hex)': f"0x{register['address']:02X}",
                 'Address (Bin)': f"{register['address']:#010b}",
-                'Value': data_str,
+                'Value (Hex)': ", ".join(new_data_hex),
+                'Value (Bin)': ", ".join(new_data_bin),
                 'Bitfield Changes': bitfield_changes,
             }
         )
